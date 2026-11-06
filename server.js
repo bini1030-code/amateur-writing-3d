@@ -67,6 +67,13 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       const kind=['heart','clap','spark','tea','wave','cookie','jelly'].includes(msg.kind)?msg.kind:'heart';
       broadcast(room,{t:'react',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
+    case 'mood':{
+      if(!rate(c,'mood',1800))return;
+      const kind=safeStr(msg.kind,10);
+      if(!['joy','sad','anger','worry','peace','hope'].includes(kind))return;
+      // Only the explicitly shared mood label is broadcast; reflection notes remain on the user's device.
+      broadcast(room,{t:'mood',id:c.id,name:c.name,kind,at:Date.now()});break;
+    }
     case 'reading':{
       if(!rate(c,'reading',1500))return;
       const title=safeStr(msg.title,80)||'제목 없는 글',text=safeStr(msg.text,4000);

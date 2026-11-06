@@ -7,15 +7,15 @@ const prompts=['어느 날 문득 나를 위로해 준 작은 말','지금 다�
 let saved={};try{saved=JSON.parse(localStorage.getItem('amateur-writing-live-v2')||'{}')}catch(e){}
 const state={name:saved.name||'',code:new URLSearchParams(location.search).get('room')||saved.code||'NIGHT',color:saved.color||0,gender:saved.gender==='female'?'female':'male',notes:saved.notes||'',topic:saved.topic||'',title:saved.title||'',story:saved.story||'',step:0,read:null,connected:false,me:null,mic:false,muted:false,room:'main',sitting:false,timer:20*60,running:false};
 function persist(){try{localStorage.setItem('amateur-writing-live-v2',JSON.stringify({name:state.name,code:state.code,color:state.color,gender:state.gender,notes:state.notes,topic:state.topic,title:state.title,story:state.story}))}catch(e){}}
-let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
+let burstLight=null;let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
 const actor={x:.2,z:7.6,rot:Math.PI,action:'stand',moving:false};
 const cam={yaw:0,pitch:.31,dist:4.7,followPos:null,first:false,eye:[0,0,0],center:[0,0,0],matrix:null};
 const worldLights=[
- {x:-2.6,y:3.05,z:4.9,color:'#ffdca0',size:190,alpha:.32},{x:0,y:3.05,z:4.9,color:'#ffdca0',size:210,alpha:.34},{x:2.6,y:3.05,z:4.9,color:'#ffdca0',size:190,alpha:.32},
- {x:-2.4,y:3.05,z:6.4,color:'#ffd7a2',size:180,alpha:.30},{x:0,y:3.05,z:6.4,color:'#ffd7a2',size:200,alpha:.32},{x:2.4,y:3.05,z:6.4,color:'#ffd7a2',size:180,alpha:.30},
- {x:6.95,y:3.08,z:10.15,color:'#ffe0a7',size:200,alpha:.28},{x:-5.6,y:3.22,z:-0.9,color:'#f6deb2',size:145,alpha:.23},{x:5.6,y:3.22,z:-0.9,color:'#f6deb2',size:145,alpha:.23},
+ {x:-2.6,y:3.05,z:4.9,color:'#ffdca0',size:230,alpha:.48},{x:0,y:3.05,z:4.9,color:'#ffdca0',size:255,alpha:.52},{x:2.6,y:3.05,z:4.9,color:'#ffdca0',size:230,alpha:.48},
+ {x:-2.4,y:3.05,z:6.4,color:'#ffd7a2',size:215,alpha:.45},{x:0,y:3.05,z:6.4,color:'#ffd7a2',size:245,alpha:.49},{x:2.4,y:3.05,z:6.4,color:'#ffd7a2',size:215,alpha:.45},
+ {x:6.95,y:3.08,z:10.15,color:'#ffe0a7',size:230,alpha:.38},{x:-5.6,y:3.22,z:-0.9,color:'#f6deb2',size:145,alpha:.23},{x:5.6,y:3.22,z:-0.9,color:'#f6deb2',size:145,alpha:.23},
  {x:-7.1,y:3.58,z:-6.9,color:'#ffe4ac',size:105,alpha:.17},{x:-5.2,y:3.58,z:-6.25,color:'#ffe4ac',size:105,alpha:.17},{x:-3.2,y:3.58,z:-7.1,color:'#ffe4ac',size:105,alpha:.17},
- {x:1.9,y:2.38,z:-9.62,color:'#fff0cc',size:145,alpha:.18},{x:6.9,y:2.38,z:-9.62,color:'#fff0cc',size:145,alpha:.18}
+ {x:1.12,y:2.37,z:-9.3,color:'#e9bb7a',size:85,alpha:.18},{x:2.45,y:2.37,z:-9.3,color:'#80a4cd',size:85,alpha:.18},{x:3.78,y:2.37,z:-9.3,color:'#d58b8e',size:85,alpha:.18},{x:5.1,y:2.37,z:-9.3,color:'#a798d2',size:85,alpha:.18},{x:6.43,y:2.37,z:-9.3,color:'#9ebfa5',size:85,alpha:.18},{x:7.76,y:2.37,z:-9.3,color:'#d7b978',size:85,alpha:.18},{x:4.5,y:3.40,z:-5.4,color:'#c9b3f5',size:180,alpha:.28}
 ];
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2700)}
 function playSound(kind='click'){
@@ -44,19 +44,21 @@ function message(p){
   case 'move':{const other=peers.get(p.id);if(other){other.moving=Math.hypot(other.x-p.x,other.z-p.z)>.02;other.lastMoved=performance.now();other.x=p.x;other.z=p.z;other.rot=p.rot;other.action=p.action;}break;}
   case 'chat':{const isMe=p.id===state.me;addChat(p.name,p.text,isMe);bubble(p.id,p.text);break;}
   case 'react':{const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
+  case 'mood':{const mood={joy:'☀️ 기쁨',sad:'💧 슬픔',anger:'🔥 화',worry:'🌧️ 불안',peace:'🍃 평온',hope:'✨ 기대'}[p.kind];const other=peers.get(p.id);if(mood){toast(p.name+' 님이 오늘의 마음을 나눴어요 · '+mood);if(other)emote('spark',other.x,other.z);playSound('heart')}break;}
+
   case 'reading':showReading(p.reading);if(p.reading){toast(p.reading.mode==='request'?p.reading.name+' 님이 대신 읽기를 부탁했어요.':'함께 낭독하는 시간이 시작됐어요.');playSound('reading')}else toast('낭독을 마쳤어요. 따뜻한 박수를 보내요.');break;
   case 'signal':handleSignal(p.from,p.data);break;
   case 'error':toast(p.message);joinFail(p.message);break;
  }
 }
 function renderPeople(){$('#count').textContent=peers.size;$('#peopleCount').textContent=peers.size;
- const list=[...peers.values()];$('#people').innerHTML=list.map(p=>`<div class="personrow"><div class="persondot" style="background:${coatColors[p.color]||coatColors[0]}"></div><span>${escapeHtml(p.name)}${p.id===state.me?' (나)':''}</span><small>${p.action==='sit'?'앉아 있음':p.z<-1?(p.x<0?'다과룸':'화장실'):'모임방'}</small></div>`).join('');}
+ const list=[...peers.values()];$('#people').innerHTML=list.map(p=>`<div class="personrow"><div class="persondot" style="background:${coatColors[p.color]||coatColors[0]}"></div><span>${escapeHtml(p.name)}${p.id===state.me?' (나)':''}</span><small>${p.action==='sit'?'앉아 있음':p.z<-1?(p.x<0?'다과룸':'여섯 얼굴의 방'):'모임방'}</small></div>`).join('');}
 function addChat(name,text,mine=false){const elt=document.createElement('div');elt.className='msg'+(mine?' mine':'');const strong=document.createElement('strong');strong.textContent=name;const body=document.createElement('span');body.textContent=text;elt.append(strong,body);$('#messages').append(elt);if($('#messages').children.length>100)$('#messages').firstChild.remove();$('#messages').scrollTop=$('#messages').scrollHeight;}
 function addSystem(text){const el=document.createElement('div');el.className='msg system';el.textContent=text;$('#messages').append(el);$('#messages').scrollTop=$('#messages').scrollHeight;}
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
 const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬'};
 function emote(kind,x,z){const screen=screenAt([x,2.5,z]);if(screen){let p=document.createElement('div');p.className='floatEmoji';p.textContent=reactionEmoji[kind]||'✨';p.style.left=screen[0]+'px';p.style.top=screen[1]+'px';p.style.setProperty('--dx',(Math.random()*75-35)+'px');$('#fxlayer').append(p);setTimeout(()=>p.remove(),1950)}
- const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df'};lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132);
+ const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df'};lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132);burstLight={x,y:1.63,z,kind,end:performance.now()+1000};
  if(!$('#reading').classList.contains('hidden')){const card=$('.readCard');for(let j=0;j<4;j++){let e=document.createElement('span');e.className='readBurst';e.textContent=reactionEmoji[kind]||'✨';e.style.left=(20+Math.random()*60)+'%';e.style.top=(68+Math.random()*16)+'%';card.append(e);setTimeout(()=>e.remove(),1850)}}
  for(let i=0;i<13;i++){const colors=kind==='heart'?['#fad4d9','#fbd7b0']:kind==='tea'?['#cde2d0','#f9ecbe']:kind==='cookie'?['#d0a076','#f5dbb7']:kind==='jelly'?['#f4b0c9','#c9c1fa']:['#fbd7b0','#f9ecbe'];particles.push({x,y:1+Math.random()*1.1,z,vx:(Math.random()-.5)*1.7,vy:1.2+Math.random()*1.4,vz:(Math.random()-.5)*1.7,life:1.2+Math.random()*.6,color:colors[i%colors.length]})}}
 function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);playSound(kind)}
@@ -171,19 +173,31 @@ window.addEventListener('resize',()=>{if(!state.read)return;const small=matchMed
 
 // Rooms are one continuous 3D model. These paths go THROUGH the physical doorways.
 
-function roomOf(x,z){return z>=-1?'main':x<0?'tea':'wc'}
+function roomOf(x,z){return z>=-1?'main':x<0?'tea':'mind'}
 // Closed walls, furniture and door frames are the single source of truth for collision and navigation.
 // A small body-radius clearance prevents avatars from getting wedged at thresholds.
+const solidRects=[
+ // main room furniture
+ {x:-.25,z:5.0,w:9.25,h:3.8}, // central meeting tables
+ {x:-3.4,z:7.5,w:1.0,h:.96},{x:-1.5,z:7.5,w:1.0,h:.96},{x:.7,z:7.5,w:1.0,h:.96},{x:2.9,z:7.5,w:1.0,h:.96},
+ {x:-3.4,z:2.48,w:1.0,h:.96},{x:-1.5,z:2.48,w:1.0,h:.96},{x:.7,z:2.48,w:1.0,h:.96},{x:2.9,z:2.48,w:1.0,h:.96},
+ {x:-5.4,z:4.4,w:.95,h:1.0},{x:4.85,z:4.5,w:.95,h:1.0},
+ {x:6.95,z:10.15,w:.95,h:.95},{x:-7.65,z:.25,w:.95,h:.95},{x:7.55,z:1.65,w:.92,h:.92},{x:-7.5,z:10.5,w:.80,h:.80},
+ // tea room
+ {x:-4.6,z:-9.15,w:7.95,h:1.45}, // back counter
+ {x:-4.5,z:-5.1,w:3.95,h:1.86}, // standing snack table
+ {x:-8.2,z:-2.7,w:.88,h:.88},{x:-4.45,z:-5.0,w:1.25,h:.82},
+ // psychology room
+ {x:4.5,z:-5.47,w:1.55,h:1.55}, // center journal stand
+ {x:1.0,z:-3.75,w:.98,h:2.20},   // entry console
+ {x:.72,z:-7.6,w:.76,h:.76},{x:.72,z:-3.0,w:.76,h:.76}
+ ];
+function inRect(x,z,r,margin=.14){return x>r.x-r.w/2-margin&&x<r.x+r.w/2+margin&&z>r.z-r.h/2-margin&&z<r.z+r.h/2+margin}
 function traversable(x,z){
  if(x<-8.47||x>8.47||z>11.4||z<-9.45)return false;
  if(z<-1.18&&x>-.33&&x<.33)return false;
  if(z>-1.32&&z<-.68&&!((x>-6.58&&x<-4.62)||(x>4.62&&x<6.58)))return false;
- if(z>3.03&&z<6.99&&x>-4.78&&x<4.41)return false;
- if(z<-8.24&&x<-1.1)return false; // tea counter
- if(z<-5.96&&z>-4.18&&x>-6.58&&x<-2.42)return false; // standing snack table
- if(z<-3.9&&z>-6.6&&x>6.48)return false; // toilet
- if(z<-1.20&&z>-3.93&&x>6.17&&x<6.53)return false; // washroom privacy partition
- if(z<-8.42&&x>3.02&&x<5.82)return false; // wash basin
+ for(const r of solidRects)if(inRect(x,z,r))return false;
  return true;
 }
 function wallFree(x,z){
@@ -234,18 +248,18 @@ function pathTo(x,z){
  return smoothed;
 }
 function routeTo(place){playSound('click');if(!state.connected)return;if(place===state.room){toast('이미 이 공간에 있어요.');return}
- const dest=place==='main'?[-6.93,8.85]:place==='tea'?[-5.5,-3.1]:[4.95,-3.10];
+ const dest=place==='main'?[-6.93,8.85]:place==='tea'?[-5.5,-3.1]:[5.25,-3.05];
  const next=pathTo(...dest);if(!next.length){toast('통로를 찾지 못했어요. 조금 움직여 다시 시도해 주세요.');return}
  route=next;actor.action='stand';state.sitting=false;
- toast((place==='tea'?'다과룸':place==='wc'?'화장실':'모임방')+'으로 안내할게요. 통로를 따라 걸어가요.');
+ toast((place==='tea'?'다과룸':place==='mind'?'여섯 얼굴의 방':'모임방')+'으로 안내할게요. 통로를 따라 걸어가요.');
 }
 $$('[data-travel]').forEach(b=>b.addEventListener('click',()=>routeTo(b.dataset.travel)));
 
-function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='wc'?'✦ 화장실에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
+function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='mind'?'✧ 여섯 얼굴의 방에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
- for(let i=0;i<8;i++){particles.push({x:actor.x+(Math.random()-.5)*.8,y:.6+Math.random(),z:actor.z+(Math.random()-.5)*.7,vx:(Math.random()-.5)*.45,vy:.6,vz:(Math.random()-.5)*.45,life:.65+Math.random()*.6,color:i%2?'#f9ecbe':'#cde2d0'})}lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='wc'?'#f2f4ff':'#ffd6ae',160);
+ for(let i=0;i<8;i++){particles.push({x:actor.x+(Math.random()-.5)*.8,y:.6+Math.random(),z:actor.z+(Math.random()-.5)*.7,vx:(Math.random()-.5)*.45,vy:.6,vz:(Math.random()-.5)*.45,life:.65+Math.random()*.6,color:i%2?'#f9ecbe':'#cde2d0'})}lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='mind'?'#d1b4fa':'#ffd6ae',160);
 }
-function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],wc:['THE QUIET ROOM','잠깐의 쉼','손을 씻고 마음을 정리하는 화장실']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
+function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind')hideMindModal();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','감정 여섯 빛을 따라 마음을 비춰 보는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){const seats=[...[-3.4,-1.5,.7,2.9].map(x=>({x,z:7.5,rot:Math.PI})),...[-3.4,-1.5,.7,2.9].map(x=>({x,z:2.5,rot:0})),{x:-5.4,z:4.4,rot:Math.PI/2},{x:4.85,z:4.5,rot:-Math.PI/2}];let best=null,dist=1e9;for(const p of seats){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<3.3?best:null}
 function sit(){if(state.sitting){state.sitting=false;actor.action='stand';sendMove();toast('자리에서 일어났어요.');return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
@@ -259,10 +273,43 @@ function eatSnack(kind){if(!state.connected||state.room!=='tea'){hideSnackMenu()
  react(kind);toast(labels[kind]+' · 서서 맛있게 즐겼어요!');}
 $('#snackMenuClose').onclick=hideSnackMenu;
 $('#snackMenu').addEventListener('click',e=>{if(e.target.id==='snackMenu')hideSnackMenu();const button=e.target.closest('[data-snack]');if(button)eatSnack(button.dataset.snack)});
-function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='wc'){emote('spark',actor.x,actor.z);lightPulse(actor.x,actor.z,'#f4f7ff',150);playSound('tea');toast('손을 씻고 잠시 마음을 가다듬었어요.')}else{sit();setTab('write')}}
+
+// Six faces of the heart. Reflection activity is personal; it never travels over WebSocket.
+const emotions={joy:{name:'기쁨',color:'#f7c16f'},sad:{name:'슬픔',color:'#8bb6d5'},anger:{name:'화',color:'#d99a94'},worry:{name:'불안',color:'#ad9bda'},peace:{name:'평온',color:'#98bfa9'},hope:{name:'기대',color:'#e5cc83'}};
+const mindQuestions=[
+ '지금 마음에 창문이 있다면, 밖에는 어떤 풍경이 보일까요?',
+ '내 마음이 날씨라면 오늘은 어떤 하늘일까요?',
+ '오늘 하루에서 오래 남은 소리는 무엇이었나요?',
+ '말이 되지 않는 기분을 색깔 하나로 표현한다면?',
+ '내 마음이 작은 편지라면 누구에게 닿고 싶을까요?',
+ '아직 모르는 마음을 잠시 옆자리에 앉힌다면 무슨 말을 건넬까요?'
+];
+let mindMood=null,mindPromptIndex=0;
+function showMindModal(){if(!state.connected||state.room!=='mind')return;hideSnackMenu();closeMobilePanel();const el=$('#mindModal');el.classList.remove('hidden');el.setAttribute('aria-hidden','false');playSound('spark')}
+function hideMindModal(){const el=$('#mindModal');if(!el)return;el.classList.add('hidden');el.setAttribute('aria-hidden','true')}
+function mindSetTab(tab){$$('[data-mind-tab]').forEach(b=>b.classList.toggle('chosen',b.dataset.mindTab===tab));$('#mindRecognize').classList.toggle('hidden',tab!=='recognize');$('#mindUnknown').classList.toggle('hidden',tab!=='unknown');playSound('click')}
+$$('[data-mind-tab]').forEach(b=>b.onclick=()=>mindSetTab(b.dataset.mindTab));
+$$('[data-mood]').forEach(b=>b.onclick=()=>{mindMood=b.dataset.mood;$$('[data-mood]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b))});playSound('spark');lightPulse(actor.x,actor.z,emotions[mindMood].color,140)});
+$('#mindClose').onclick=hideMindModal;
+$('#mindModal').addEventListener('click',e=>{if(e.target.id==='mindModal')hideMindModal()});
+function mindRecord(){if(!mindMood){toast('오늘 마음에 가장 가까운 얼굴을 하나 골라 주세요.');return null}
+ const record={mood:mindMood,cause:$('#mindCause').value.trim().slice(0,600),need:$('#mindNeed').value.trim().slice(0,400),day:new Date().toLocaleDateString('ko-KR')};
+ try{localStorage.setItem('amateur-writing-mind-private',JSON.stringify(record))}catch(e){}
+ toast('이 마음은 내 기기에만 간직했어요.');return record;
+}
+$('#mindSave').onclick=()=>{const r=mindRecord();if(r)playSound('heart')};
+$('#mindShare').onclick=()=>{if(!mindMood){toast('먼저 나누고 싶은 감정 얼굴을 골라 주세요.');return;}send({t:'mood',kind:mindMood});playSound('heart');lightPulse(actor.x,actor.z,emotions[mindMood].color,150);toast('오늘의 감정 이름만 다른 참가자에게 나눴어요. 개인 기록은 전송되지 않아요.');};
+$('#mindWrite').onclick=()=>{const r=mindRecord();if(!r)return;
+ state.topic='지금 내 마음 — '+emotions[r.mood].name;
+ state.notes=[state.notes.trim(),`${r.day} / 나의 마음: ${emotions[r.mood].name}`,r.cause?'떠오르는 순간: '+r.cause:'',r.need?'내게 필요한 말: '+r.need:''].filter(Boolean).join('\n');persist();
+ setStep(2);hideMindModal();openMobilePanel('write');setTab('write');toast('마음 기록을 나만의 글감으로 옮겼어요.');
+};
+$('#mindShuffle').onclick=()=>{mindPromptIndex=(mindPromptIndex+1+Math.floor(Math.random()*(mindQuestions.length-1)))%mindQuestions.length;$('#mindPrompt').textContent=mindQuestions[mindPromptIndex];playSound('spark')};
+$('#mindUnknownWrite').onclick=()=>{state.topic='아직 이름 없는 마음';state.notes=[state.notes.trim(),mindQuestions[mindPromptIndex]].filter(Boolean).join('\n');persist();setStep(2);hideMindModal();openMobilePanel('write');setTab('write');toast('마음 질문이 나의 글감으로 옮겨졌어요.')};
+function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='mind'){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);}else{sit();setTab('write')}}
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting){state.sitting=false;actor.action='stand'}}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting){state.sitting=false;actor.action='stand'}}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
 $('#camToggle').onclick=toggleCam;
@@ -315,8 +362,8 @@ function cameraUpdate(dt){
 }
 function screenAt(pos){if(!cam.matrix)return null;const [x,y,z]=pos,m=cam.matrix,w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w<.12)return null;const a=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,b=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;return [(a*.5+.5)*canvas.clientWidth,(.5-b*.5)*canvas.clientHeight,w]}
 function lightPulse(x,z,color='#ffe2a8',size=130){const pt=screenAt([x,1.8,z]);if(!pt)return;const el=document.createElement('div');el.className='lightPulse';el.style.left=pt[0]+'px';el.style.top=pt[1]+'px';el.style.setProperty('--pulse-color',color);el.style.setProperty('--pulse-size',size+'px');$('#fxlayer').append(el);setTimeout(()=>el.remove(),820)}
-function renderLightGlows(){const layer=$('#lightlayer');if(!layer||!cam.matrix)return;const out=[];for(const l of worldLights){const pt=screenAt([l.x,l.y,l.z]);if(!pt)continue;const [sx,sy,w]=pt;if(sx<-120||sx>canvas.clientWidth+120||sy<-120||sy>canvas.clientHeight+120)continue;const dist=Math.hypot(cam.eye[0]-l.x,cam.eye[1]-l.y,cam.eye[2]-l.z);const size=Math.max(58,l.size*Math.min(1.75,8/Math.max(3,dist)));const alpha=(l.alpha||.2)*Math.max(.18,Math.min(1,.98-dist/24));out.push(`<div class="sceneGlow" style="left:${sx}px;top:${sy}px;--size:${size}px;--glow:${l.color};--alpha:${alpha}"></div>`)}layer.innerHTML=out.join('')}
-function screenLabels(){if(!state.connected)return;const labels=[];for(const door of [{x:-5.6,z:-1.0,t:'☕ 다과룸'},{x:5.6,z:-1.0,t:'🚻 화장실'}]){
+let lastLightPaint=0;function renderLightGlows(){const timestamp=performance.now();if(timestamp-lastLightPaint<65)return;lastLightPaint=timestamp;const layer=$('#lightlayer');if(!layer||!cam.matrix)return;const out=[];for(const l of worldLights){const pt=screenAt([l.x,l.y,l.z]);if(!pt)continue;const [sx,sy,w]=pt;if(sx<-120||sx>canvas.clientWidth+120||sy<-120||sy>canvas.clientHeight+120)continue;const dist=Math.hypot(cam.eye[0]-l.x,cam.eye[1]-l.y,cam.eye[2]-l.z);const size=Math.max(58,l.size*Math.min(1.75,8/Math.max(3,dist)));const alpha=(l.alpha||.2)*Math.max(.18,Math.min(1,.98-dist/24));out.push(`<div class="sceneGlow" style="left:${sx}px;top:${sy}px;--size:${size}px;--glow:${l.color};--alpha:${alpha}"></div>`)}layer.innerHTML=out.join('')}
+function screenLabels(){if(!state.connected)return;const labels=[];for(const door of [{x:-5.6,z:-1.0,t:'☕ 다과룸'},{x:5.6,z:-1.0,t:'✧ 여섯 얼굴의 방'}]){
  if(Math.hypot(actor.x-door.x,actor.z-door.z)<8){const loc=screenAt([door.x,2.93,door.z]);if(loc&&loc[0]>20&&loc[0]<canvas.clientWidth-20&&loc[1]>90&&loc[1]<canvas.clientHeight-30)labels.push(`<div class="door-label" style="left:${loc[0]}px;top:${loc[1]}px">${door.t}</div>`)}}
  for(const p of peers.values()){if(p.id===state.me&&cam.first)continue;const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz;const pt=screenAt([x,2.25,z]);if(!pt||pt[0]<-30||pt[0]>canvas.clientWidth+30||pt[1]<60||pt[1]>canvas.clientHeight)continue;const txt=p.bubble&&p.bubbleEnd>Date.now()?p.bubble:(p.id===state.me?'나 · '+p.name:p.name);labels.push(`<div class="world-label ${p.id===state.me?'me':''}" style="left:${pt[0]}px;top:${pt[1]}px">${escapeHtml(txt)}</div>`)}$('#worldlabels').innerHTML=labels.join('')}
 let lastFrame=0,lastStepAt=0;
@@ -324,11 +371,11 @@ function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame
  const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight),dpr=Math.min(matchMedia('(max-width:700px)').matches?1.25:1.5,devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);if(gl)gl.viewport(0,0,canvas.width,canvas.height)}
  if(state.connected){const moving=move(dt);actor.moving=moving;if(moving&&now-lastStepAt>520){playSound('step');lastStepAt=now}if(moving&&now-lastNet>85){sendMove();lastNet=now}if(!moving&&now-lastNet>950){sendMove();lastNet=now}updateZone();}
  cameraUpdate(dt);
- if(gl){gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
+ if(gl){if(burstLight&&now<burstLight.end){const color=burstLight.kind==='heart'?[1,.38,.55]:burstLight.kind==='jelly'?[.93,.54,.94]:burstLight.kind==='tea'?[.68,1,.60]:[1,.84,.54];gl.uniform3f(uFxPos,burstLight.x,burstLight.y,burstLight.z);gl.uniform3fv(uFxColor,new Float32Array(color));gl.uniform1f(uFxPower,Math.max(0,(burstLight.end-now)/1000)*2.1);}else{gl.uniform1f(uFxPower,0);}gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
   if(p.id!==state.me){p.rx+=(p.x-p.rx)*Math.min(1,dt*11);p.rz+=(p.z-p.rz)*Math.min(1,dt*11);p.rr+=(p.rot-p.rr)*Math.min(1,dt*10)}
   const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz,rot=p.id===state.me?actor.rot:p.rr;
-  const isMe=p.id===state.me,isSitting=(isMe?actor.action:p.action)==='sit';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose];draw(m,mul(cam.matrix,modelMat(x,0,z,rot)))}
-  for(const part of particles){part.life-=dt;part.x+=part.vx*dt;part.y+=part.vy*dt;part.z+=part.vz*dt;part.vy-=.7*dt;if(part.life>0)draw(particleMeshes[part.color],mul(cam.matrix,modelMat(part.x,part.y,part.z,0)))}particles=particles.filter(p=>p.life>0);}
+  const isMe=p.id===state.me,isSitting=(isMe?actor.action:p.action)==='sit';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose],model=modelMat(x,0,z,rot);draw(m,mul(cam.matrix,model),model)}
+  for(const part of particles){part.life-=dt;part.x+=part.vx*dt;part.y+=part.vy*dt;part.z+=part.vz*dt;part.vy-=.7*dt;if(part.life>0)draw(particleMeshes[part.color],mul(cam.matrix,modelMat(part.x,part.y,part.z,0)),modelMat(part.x,part.y,part.z,0))}particles=particles.filter(p=>p.life>0);}
  }
  if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>({self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action:p.id===state.me?actor.action:p.action,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(p.action==='sit'?4:0)}));drawSoftware(now,players,cam,particles)}
  renderLightGlows();

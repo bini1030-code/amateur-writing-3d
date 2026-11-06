@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#141a20"><title>아마추어 글쓰기 · 밤의 문장들 | 3D 모임</title><link rel="stylesheet" href="/style.css"></head><body>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#141a20"><title>아마추어 글쓰기 · 밤의 문장들 | 여섯 얼굴의 방</title><link rel="stylesheet" href="/style.css"></head><body>
 <div id="app">
   <main id="space">
     <canvas id="world" aria-label="3D 모임 공간"></canvas>
@@ -10,10 +10,10 @@
     <div class="chapter"><div class="eyebrow" id="zoneLabel">THE WRITING ROOM</div><h1 id="zoneTitle">밤의 문장들</h1><p id="zoneSub">서로의 이야기가 머무는 작은 방</p></div>
     <div id="worldlabels"></div><div id="lightlayer" aria-hidden="true"></div><div id="fxlayer" aria-hidden="true"></div>
     <div class="hud-bottom">
-      <div class="controls"><div class="control-title">HOW TO MOVE</div><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 <span class="dotsep">·</span> 마우스 드래그 둘러보기 <span class="dotsep">·</span> <kbd>V</kbd> 1인칭/3인칭</div><div><kbd>E</kbd> 가까운 사물 이용 <span class="dotsep">·</span> <kbd>F</kbd> 모임방 의자에 앉기 <span class="dotsep">·</span> <kbd>Enter</kbd> 채팅</div></div>
+      <div class="controls"><div class="control-title">HOW TO MOVE</div><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 <span class="dotsep">·</span> 마우스 드래그 둘러보기 <span class="dotsep">·</span> <kbd>V</kbd> 1인칭/3인칭</div><div><kbd>E</kbd> 공간별 상호작용 <span class="dotsep">·</span> <kbd>F</kbd> 모임방 의자에 앉기 <span class="dotsep">·</span> <kbd>Enter</kbd> 채팅</div></div>
       <div class="worldactions"><button id="camToggle" title="1인칭 또는 3인칭 전환">◉ <span>시점</span></button><button id="soundToggle" title="효과음 끄고 켜기">♫ <span>소리 켬</span></button></div>
     </div>
-    <div class="navigation"><button data-travel="main"><span>✎</span> 모임방</button><button data-travel="tea"><span>☕</span> 다과룸</button><button data-travel="wc"><span>◈</span> 화장실</button></div>
+    <div class="navigation"><button data-travel="main"><span>✎</span> 모임방</button><button data-travel="tea"><span>☕</span> 다과룸</button><button data-travel="mind"><span>✧</span> 여섯 얼굴의 방</button></div>
     <div class="mobileMove" id="joystick" aria-label="이동 조이스틱"><div class="joystick-hint">MOVE</div><div id="stick"></div></div>
         <div class="effectToast" id="toast" role="status"></div>
     <div id="snackMenu" class="snackOverlay hidden" role="dialog" aria-label="다과 고르기" aria-modal="true" aria-hidden="true">
@@ -26,6 +26,39 @@
         </div><div class="snackBottom">✦ 다과룸에는 의자가 없어요. 편하게 서서 둘러보세요.</div>
       </div>
     </div>
+
+    <section id="mindModal" class="mindOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="mindHeading">
+      <div class="mindCard">
+        <header class="mindHeader"><div><span class="mindKicker">SIX FACES OF THE HEART · 마음을 비춰보는 공간</span>
+          <h2 id="mindHeading">내 마음은 왜 여섯 얼굴일까?</h2><p>여섯 감정은 정답이 아니라 마음을 들여다보는 여섯 개의 창문이에요.</p></div>
+          <button type="button" id="mindClose" aria-label="마음 탐색 닫기">✕</button>
+        </header>
+        <div class="mindTabs"><button type="button" data-mind-tab="recognize" class="chosen">✦ 내 마음 알아보기</button><button type="button" data-mind-tab="unknown">☾ 내 마음 몰라보기</button></div>
+        <div id="mindRecognize" class="mindSection">
+          <p class="mindQuestion">지금 가장 가까운 마음은 무엇인가요?</p>
+          <div class="moodGrid" id="moodGrid" role="group" aria-label="마음 여섯 가지 중 선택">
+            <button type="button" data-mood="joy"><span>☀️</span><strong>기쁨</strong><small>좋은 일에 마음이 환해질 때</small></button>
+            <button type="button" data-mood="sad"><span>💧</span><strong>슬픔</strong><small>무언가 소중해서 아쉬울 때</small></button>
+            <button type="button" data-mood="anger"><span>🔥</span><strong>화</strong><small>내 경계가 건드려진 것 같을 때</small></button>
+            <button type="button" data-mood="worry"><span>🌧️</span><strong>불안</strong><small>앞일을 알 수 없어 조마조마할 때</small></button>
+            <button type="button" data-mood="peace"><span>🍃</span><strong>평온</strong><small>숨을 고르며 잠시 쉬고 싶을 때</small></button>
+            <button type="button" data-mood="hope"><span>✨</span><strong>기대</strong><small>아직 오지 않은 일을 기다릴 때</small></button>
+          </div>
+          <label class="mindLabel" for="mindCause">그 감정이 찾아온 순간이 있었나요? <small>선택 사항</small></label>
+          <textarea id="mindCause" maxlength="600" rows="2" placeholder="지금 떠오르는 장면을 한두 문장으로 적어 보세요."></textarea>
+          <label class="mindLabel" for="mindNeed">지금 내게 필요한 다정한 말은? <small>선택 사항</small></label>
+          <textarea id="mindNeed" maxlength="400" rows="2" placeholder="예: 서두르지 않아도 괜찮아."></textarea>
+          <div class="mindFooter"><span>🔒 기록은 이 기기에만 저장 · 나누기를 누르면 감정 이름만 공개</span><button type="button" id="mindSave" class="mindPrimary">마음 기록하기</button><button type="button" id="mindShare">감정 이름만 나누기</button><button type="button" id="mindWrite">이 마음으로 글 시작하기 ↗</button></div>
+        </div>
+        <div id="mindUnknown" class="mindSection hidden">
+          <div class="mindUnknownArt">☾ ✧ ✦</div>
+          <h3>아직 이름 없는 마음도 괜찮아요.</h3>
+          <p>선뜻 어떤 감정인지 모르겠다면, 마음에 정답을 붙이지 않고 한 장면을 떠올려 보아요.</p>
+          <blockquote id="mindPrompt">지금 마음에 창문이 있다면, 밖에는 어떤 풍경이 보일까요?</blockquote>
+          <div class="mindFooter"><span>진단이나 심리 검사가 아닌, 자유로운 글쓰기 질문이에요.</span><button type="button" id="mindShuffle">↻ 다른 질문</button><button type="button" class="mindPrimary" id="mindUnknownWrite">이 질문으로 글 시작하기 ↗</button></div>
+        </div>
+      </div>
+    </section>
 <!-- V6: each participant controls their own book; the 3D world stays visible. -->
 <div class="bookNotice hidden" id="bookNotice" role="status" aria-live="polite">
   <span class="bookNoticeIcon" aria-hidden="true">📖</span>
@@ -68,5 +101,5 @@
     <div class="sidebarFoot">✦ 밤이 깊을수록, 이야기는 더 선명해집니다.</div>
   </aside>
 </div>
-<div id="entrance" class="overlay"><div class="enterCard"><div class="enterArt"><div class="artGlow"></div><div class="starfield">✧ &nbsp;&nbsp; ✦ &nbsp;&nbsp;&nbsp; ✧</div><div class="enterArtTitle">조금 서툰 문장으로도<br>우리는 서로에게 닿아요.</div><div class="artNote">A quiet room for the things we couldn't say.</div></div><div class="enterForm"><div class="eyebrow">WELCOME TO OUR LITTLE ROOM</div><h2>아마추어<br><i>글쓰기</i></h2><p>따뜻한 불빛 아래 모여, 한 편씩 우리 이야기를 적습니다. 마음이 준비되면 들어오세요.</p><label for="nickname">어떤 이름으로 불러드릴까요?</label><input id="nickname" maxlength="18" placeholder="예: 달빛 필자" autocomplete="nickname"><label for="inviteCode">모임방 코드 <small>같은 코드를 쓰면 같은 공간에 접속해요</small></label><input id="inviteCode" maxlength="18" value="NIGHT" autocomplete="off"><label id="avatarTypeLabel">캐릭터 선택</label><div class="avatarTypes" id="avatarTypes" role="group" aria-labelledby="avatarTypeLabel"><button type="button" class="chosen" data-gender="male" aria-pressed="true"><span class="avatarBadge maleBadge" aria-hidden="true"><i class="badgeBackHair maleBackHair"></i><i class="badgeHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>남자 캐릭터</span></button><button type="button" data-gender="female" aria-pressed="false"><span class="avatarBadge femaleBadge" aria-hidden="true"><i class="badgeBackHair femaleBackHair"></i><i class="badgeHair femaleFrontHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>여자 캐릭터</span></button></div><label>옷 색상 선택</label><div class="colors" id="colors" aria-label="아바타 색상 선택"><button data-color="0" class="chosen" style="--c:#c67c73" aria-label="다홍"></button><button data-color="1" style="--c:#789b8f" aria-label="연두"></button><button data-color="2" style="--c:#8498b5" aria-label="파랑"></button><button data-color="3" style="--c:#c1a2c8" aria-label="보라"></button><button data-color="4" style="--c:#d1ae6d" aria-label="노랑"></button><button data-color="5" style="--c:#b18b75" aria-label="갈색"></button></div><button id="enterBtn" class="enterButton">오늘의 방으로 들어가기 <span>↗</span></button><small class="notice">글은 내 브라우저에 저장되며, 낭독할 때에만 참여자에게 공개돼요. 마이크는 직접 켜야 합니다.</small><div id="entryError" role="status"></div></div></div></div>
+<div id="entrance" class="overlay"><div class="enterCard"><div class="enterArt"><div class="artGlow"></div><div class="starfield">✧ &nbsp;&nbsp; ✦ &nbsp;&nbsp;&nbsp; ✧</div><div class="enterArtTitle">조금 서툰 문장으로도<br>우리는 서로에게 닿아요.</div><div class="artNote">A quiet room for the things we couldn't say.</div></div><div class="enterForm"><div class="eyebrow">WELCOME TO OUR LITTLE ROOM</div><h2>아마추어<br><i>글쓰기</i></h2><p>따뜻한 불빛 아래 모여, 한 편씩 우리 이야기를 적습니다. 마음이 준비되면 들어오세요.</p><label for="nickname">어떤 이름으로 불러드릴까요?</label><input id="nickname" maxlength="18" placeholder="예: 달빛 필자" autocomplete="nickname"><label for="inviteCode">모임방 코드 <small>같은 코드를 쓰면 같은 공간에 접속해요</small></label><input id="inviteCode" maxlength="18" value="NIGHT" autocomplete="off"><label id="avatarTypeLabel">캐릭터 선택</label><div class="avatarTypes" id="avatarTypes" role="group" aria-labelledby="avatarTypeLabel"><button type="button" class="chosen" data-gender="male" aria-pressed="true"><span class="avatarBadge maleBadge" aria-hidden="true"><i class="badgeBackHair maleBackHair"></i><i class="badgeHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>남자 캐릭터</span></button><button type="button" data-gender="female" aria-pressed="false"><span class="avatarBadge femaleBadge" aria-hidden="true"><i class="badgeBackHair femaleBackHair"></i><i class="badgeHair femaleFrontHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>여자 캐릭터</span></button></div><label>니트 색상 선택 <small>남녀 캐릭터 모두 적용돼요</small></label><div class="colors" id="colors" aria-label="아바타 색상 선택"><button data-color="0" class="chosen" style="--c:#b98e73" aria-label="카멜 베이지"></button><button data-color="1" style="--c:#7b9b8d" aria-label="세이지 그린"></button><button data-color="2" style="--c:#839bb8" aria-label="더스티 블루"></button><button data-color="3" style="--c:#b49ac8" aria-label="라벤더"></button><button data-color="4" style="--c:#c8a56b" aria-label="허니 옐로"></button><button data-color="5" style="--c:#cd8f92" aria-label="로즈 핑크"></button></div><button id="enterBtn" class="enterButton">오늘의 방으로 들어가기 <span>↗</span></button><small class="notice">글은 내 브라우저에 저장되며, 낭독할 때에만 참여자에게 공개돼요. 마이크는 직접 켜야 합니다.</small><div id="entryError" role="status"></div></div></div></div>
 <script src="/engine.js"></script><script src="/game.js"></script></body></html>

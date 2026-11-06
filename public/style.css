@@ -149,3 +149,63 @@
 @media(max-width:700px){.snackOverlay{align-items:flex-end;padding:0 8px calc(12px + env(safe-area-inset-bottom))}.snackCard{padding:18px 14px;border-radius:20px}.snackCard h2{font-size:20px}.snackCard p{font-size:12px;margin-bottom:12px}.snackChoices{gap:7px}.snackChoices button{min-height:117px}.snackIcon{font-size:30px}.snackChoices strong{font-size:11px}.snackChoices small{font-size:9px}}
 
 .avatarBadge.femaleBadge .badgeBackHair{width:26px;height:27px;top:5px;border-radius:14px 14px 12px 12px;background:#4a3c36}.avatarBadge.femaleBadge .badgeHair{width:22px;height:10px;top:6px;border-radius:10px 10px 8px 8px;background:#3f332f}.avatarBadge.femaleBadge .femaleFrontHair{box-shadow:-9px 7px 0 -4px #4a3c36,9px 7px 0 -4px #4a3c36}.avatarBadge.femaleBadge .femaleBackHair{box-shadow:0 10px 0 -6px #4a3c36;}
+
+
+/* V10 · Dimmer, warm intimate evening: light sources become the visual anchors. */
+#space{background:#111321}
+.vignette{background:linear-gradient(180deg,rgba(10,13,24,.68),transparent 28%,rgba(7,9,18,.08) 63%,rgba(8,10,18,.42)),radial-gradient(ellipse at center,transparent 36%,#080d2196 100%)}
+.sceneGlow{filter:blur(4px);mix-blend-mode:screen}
+#lightlayer{mix-blend-mode:screen}
+#zoneTitle{max-width:min(570px,68vw)}
+.navigation button[data-travel="mind"]{border-color:#bca0dc94;background:#393044d1;max-width:174px}
+.navigation button[data-travel="mind"]:hover{background:#5a4770}
+/* Entrance swatches and avatar badges now share the chosen knitted outfit. */
+.avatarBadge.maleBadge .badgeSweater{background:var(--chosen-coat,#b98e73)}
+.avatarBadge.femaleBadge .badgeSweater{background:var(--chosen-coat,#b98e73)}
+.avatarBadge.maleBadge .badgeBackHair{width:27px;height:23px;top:3px;border-radius:14px 14px 9px 9px}
+.avatarBadge.femaleBadge .badgeBackHair{width:29px;height:31px;top:2px;border-radius:17px 17px 12px 12px}
+.avatarBadge .badgeHair{top:4px;border-radius:18px 18px 8px 7px}
+/* Psychology room · soft private reflection card. */
+.mindOverlay.hidden,.mindSection.hidden{display:none!important}
+.mindOverlay{position:fixed;inset:0;z-index:35;background:#0b0d20b8;backdrop-filter:blur(9px);display:grid;place-items:center;padding:16px;color:#493e50}
+.mindCard{width:min(790px,100%);max-height:min(90dvh,810px);overflow-y:auto;overscroll-behavior:contain;border-radius:24px;border:1px solid #eddee4;background:linear-gradient(150deg,#fff8f3,#f6f0fb);box-shadow:0 35px 110px #090c2088;padding:27px 30px 24px}
+.mindHeader{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.mindKicker{display:block;color:#a98dba;letter-spacing:1.3px;font-size:10px;font-weight:800}
+.mindHeader h2{font:600 clamp(19px,2.8vw,29px)/1.4 'Noto Serif KR',serif;letter-spacing:-.75px;margin:7px 0 5px;color:#514158}
+.mindHeader p{font-size:12px;line-height:1.65;color:#86748d;margin:0}
+.mindHeader>button{flex:0 0 auto;width:37px;height:37px;background:#efe4f1;color:#6e5976;border:0;border-radius:50%;font-size:15px}
+.mindTabs{display:flex;gap:9px;margin:19px 0 16px}
+.mindTabs button{background:#fff;border:1px solid #e1d4e6;color:#796682;border-radius:12px;padding:11px 16px;font-size:13px;font-weight:750;min-height:42px}
+.mindTabs button.chosen{background:#715e87;color:#fff;border-color:#715e87}
+.mindQuestion{font:600 15px/1.5 'Noto Serif KR',serif;color:#604e66;margin:8px 0 14px}
+.moodGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.moodGrid button{display:flex;align-items:center;gap:3px;flex-direction:column;justify-content:center;background:#fffdfc;border:1.5px solid #e6deea;border-radius:15px;padding:13px 8px;min-height:113px;transition:transform .15s,border-color .15s,background .15s}
+.moodGrid button:hover{transform:translateY(-2px);border-color:#baa7cc}.moodGrid button.selected{border-color:#9873b8;background:#f4ebfa;box-shadow:0 0 0 3px #c7b0db34}
+.moodGrid button>span{font-size:25px}.moodGrid button strong{font-size:13px;color:#56435a}.moodGrid button small{font-size:10px;color:#978699;text-align:center;line-height:1.3}
+.mindLabel{display:block;color:#5e4e65;font-size:12px;font-weight:750;margin:12px 0 6px}.mindLabel small{font-size:10px;color:#a89bae;font-weight:400}
+.mindCard textarea{width:100%;border:1px solid #dfd4e5;border-radius:12px;display:block;resize:vertical;padding:12px 14px;line-height:1.65;background:#fffdfe;color:#4b4153;font-size:13px;min-height:63px}
+.mindCard textarea:focus{outline:2px solid #bea1d8;outline-offset:0}
+.mindFooter{margin-top:15px;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.mindFooter span{font-size:10px;line-height:1.6;color:#93839c;margin-right:auto;flex:1;min-width:160px}
+.mindFooter button{min-height:42px;padding:10px 14px;border-radius:11px;border:1px solid #d3c6d8;background:#fffdfb;color:#765d85;font-weight:750;font-size:11px}
+.mindFooter .mindPrimary{background:#735d88;border-color:#735d88;color:#fff}
+.mindUnknownArt{margin:20px auto;text-align:center;font-size:42px;color:#9b85b7;letter-spacing:15px}
+.mindSection#mindUnknown{text-align:center}#mindUnknown h3{font:600 21px/1.5 'Noto Serif KR',serif;color:#59465e;margin:9px 0}
+#mindUnknown p{font-size:13px;color:#87748e;line-height:1.7;max-width:510px;margin:8px auto 18px}
+#mindUnknown blockquote{font:500 17px/1.7 'Noto Serif KR',serif;color:#6a536c;text-align:center;border-left:0;padding:24px 18px;border-radius:17px;background:#efe5f3;margin:13px 0}
+@media(max-width:700px){
+ .navigation button[data-travel="mind"]{max-width:116px;min-width:95px;line-height:1.2}
+ .chapter h1{max-width:56vw;font-size:21px;line-height:1.33}
+ .mindOverlay{padding:9px 8px calc(82px + env(safe-area-inset-bottom));align-items:end}
+ .mindCard{padding:16px 15px;max-height:min(88dvh,740px);border-radius:21px}
+ .mindHeader h2{font-size:21px}.mindHeader p{font-size:11px}
+ .mindKicker{font-size:9px;letter-spacing:.5px}
+ .mindTabs{gap:7px;margin:13px 0}.mindTabs button{font-size:11px;flex:1;padding:8px 7px}
+ .moodGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+ .moodGrid button{padding:9px 3px;min-height:94px}.moodGrid button small{font-size:9px}.moodGrid button>span{font-size:22px}
+ .mindFooter{justify-content:stretch}.mindFooter span{flex-basis:100%}.mindFooter button{flex:1;min-width:91px;font-size:10px;padding:10px 5px}
+ #mindUnknown blockquote{font-size:15px;padding:16px 11px}
+}
+@media(prefers-reduced-motion:reduce){.moodGrid button{transition:none}}
+
+#mindShare{border-color:#d6c8e2;background:#f8f3fc;color:#735e87}

@@ -5,11 +5,24 @@ const gl=canvas.getContext('webgl',{antialias:true,alpha:false,depth:true});
 const softCtx=gl?null:canvas.getContext('2d',{alpha:false});
 if(!gl)console.info('WebGL unavailable; using perspective 3D software renderer.');
 let rendererReady=!!gl;
-const vert=`attribute vec3 aPos;attribute vec3 aColor;uniform mat4 uMatrix;uniform float uAmbient;varying vec3 vColor;varying float vFog;void main(){vec4 clip=uMatrix*vec4(aPos,1.);gl_Position=clip;vColor=aColor*uAmbient;vFog=clamp((clip.z/clip.w-.72)*.3,0.,.16);}`;
-const frag=`precision mediump float;varying vec3 vColor;varying float vFog;void main(){gl_FragColor=vec4(mix(vColor,vec3(.13,.14,.19),vFog),1.);}`;
+const vert=`attribute vec3 aPos;attribute vec3 aColor;uniform mat4 uMatrix;uniform mat4 uModel;varying vec3 vBase;varying vec3 vWorld;varying float vFog;void main(){vec4 pos=uModel*vec4(aPos,1.);vWorld=pos.xyz;vec4 clip=uMatrix*vec4(aPos,1.);gl_Position=clip;vBase=aColor;vFog=clamp((clip.z/clip.w-.66)*.18,0.,.12);}`;
+const frag=`precision mediump float;varying vec3 vBase;varying vec3 vWorld;varying float vFog;uniform float uAmbient;uniform vec3 uFxPos;uniform vec3 uFxColor;uniform float uFxPower;
+vec3 lamp(vec3 pos,vec3 color,float intensity,float decay){vec3 d=vWorld-pos;return color*(intensity/(1.+dot(d,d)*decay));}
+void main(){
+ vec3 light=vec3(.95,.96,1.08)*uAmbient;
+ light+=lamp(vec3(0.,3.05,5.0),vec3(1.0,.77,.49),1.15,.12);
+ light+=lamp(vec3(-2.5,3.0,6.3),vec3(1.0,.82,.59),.67,.19);
+ light+=lamp(vec3(2.7,3.0,4.6),vec3(1.0,.76,.47),.66,.19);
+ light+=lamp(vec3(-4.5,3.10,-5.2),vec3(1.0,.71,.44),1.75,.14);
+ light+=lamp(vec3(4.55,2.85,-5.45),vec3(.63,.64,1.0),1.85,.14);
+ light+=lamp(vec3(6.9,3.1,10.1),vec3(1.0,.73,.52),1.0,.17);
+ vec3 fxD=vWorld-uFxPos;light+=uFxColor*(uFxPower/(1.+dot(fxD,fxD)*.48));
+ vec3 c=clamp(vBase*light,0.,1.0);
+ gl_FragColor=vec4(mix(c,vec3(.055,.075,.108),vFog),1.);
+}`;
 function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
-let aPos,aColor,uMatrix,uAmbient;
-if(gl){const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vert));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);aPos=gl.getAttribLocation(program,'aPos');aColor=gl.getAttribLocation(program,'aColor');uMatrix=gl.getUniformLocation(program,'uMatrix');uAmbient=gl.getUniformLocation(program,'uAmbient');gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.14,.16,.20,1);gl.uniform1f(uAmbient,1.0);}
+let aPos,aColor,uMatrix,uAmbient,uModel,uFxPos,uFxColor,uFxPower;const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+if(gl){const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vert));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);aPos=gl.getAttribLocation(program,'aPos');aColor=gl.getAttribLocation(program,'aColor');uMatrix=gl.getUniformLocation(program,'uMatrix');uModel=gl.getUniformLocation(program,'uModel');uAmbient=gl.getUniformLocation(program,'uAmbient');uFxPos=gl.getUniformLocation(program,'uFxPos');uFxColor=gl.getUniformLocation(program,'uFxColor');uFxPower=gl.getUniformLocation(program,'uFxPower');gl.uniformMatrix4fv(uModel,false,identity);gl.uniform3f(uFxPos,0,-50,0);gl.uniform3f(uFxColor,1,.8,.6);gl.uniform1f(uFxPower,0);gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.14,.16,.20,1);gl.uniform1f(uAmbient,.39);}
 function mul(a,b){let r=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)for(let k=0;k<4;k++)r[j*4+i]+=a[k*4+i]*b[j*4+k];return r}
 function persp(fov,aspect,near,far){let f=1/Math.tan(fov/2);let a=new Float32Array(16);a[0]=f/aspect;a[5]=f;a[10]=(far+near)/(near-far);a[11]=-1;a[14]=2*far*near/(near-far);return a}
 function norm(a){let l=Math.hypot(...a)||1;return a.map(v=>v/l)}
@@ -39,10 +52,10 @@ class Mesh{constructor(){this.data=[]}tri(a,b,c,color){for(const v of [a,b,c])th
 }
 const world=new Mesh();const B=(...p)=>world.box(...p),S=(...p)=>world.sphere(...p),C=(...p)=>world.cylinder(...p),cone=(...p)=>world.cone(...p);
 // Floor and board seams
-B(0,-.16,5.6,18,.3,13.4,'#b49a7c');B(-4.5,-.16,-5.5,9,.3,9,'#866852');B(4.5,-.16,-5.5,9,.3,9,'#d7d6ca');
+B(0,-.16,5.6,18,.3,13.4,'#b49a7c');B(-4.5,-.16,-5.5,9,.3,9,'#866852');B(4.5,-.16,-5.5,9,.3,9,'#352f4f');
 for(let z=-.7;z<12.4;z+=.53){B(0,.004,z,17.9,.009,.014,'#897259');for(let x=-8.8;x<9;x+=3.5)B(x,.008,z+(.53/2),.018,.012,.53,'#a88968')}
 for(let z=-9.7;z<-1.1;z+=.53)B(-4.5,.006,z,8.88,.015,.014,'#604e43');
-for(let z=-9.8;z<-1.05;z+=1.05)B(4.5,.009,z,8.95,.01,.018,'#acaea7');for(let x=.3;x<9;x+=1.05)B(x,.009,-5.5,.015,.01,8.9,'#acaea7');
+for(let z=-9.75;z<-1.2;z+=.62)B(4.5,.009,z,8.95,.006,.016,'#463b65');for(let x=.35;x<9;x+=.62)B(x,.012,-5.5,.016,.006,8.75,'#463b65');
 // Warm cream walls, 2 doors in back partition
 const wall='#d7c4a7'; // open roof for bird's-eye third-person camera
 // upper ceiling layer drawn high and visible from below; no roof panel to preserve top-down view
@@ -53,7 +66,7 @@ B(-7.95,1.9,-1,2.1,3.8,.22,wall);B(-.02,1.9,-1,9.02,3.8,.22,wall);B(7.95,1.9,-1,
 // Above and frame door openings
 for(const x of [-5.6,5.6]){B(x,3.4,-1,2.5,.85,.22,'#d7c4a7');B(x-1.22,1.7,-.84,.14,3.4,.23,'#9f7655');B(x+1.22,1.7,-.84,.14,3.4,.23,'#9f7655');B(x,3.13,-.84,2.5,.12,.25,'#9f7655')}
 // Tea back room and WC exterior
-B(-9,1.9,-5.5,.22,3.8,9.1,'#cdb9a3');B(9,1.9,-5.5,.22,3.8,9.1,'#d7d5cb');B(-4.5,1.9,-10,9,3.8,.22,'#bca38c');B(4.5,1.9,-10,9,3.8,.22,'#c1c4bf');B(0,1.9,-5.5,.2,3.8,9,'#b2aaa1');
+B(-9,1.9,-5.5,.22,3.8,9.1,'#cdb9a3');B(9,1.9,-5.5,.22,3.8,9.1,'#514568');B(-4.5,1.9,-10,9,3.8,.22,'#bca38c');B(4.5,1.9,-10,9,3.8,.22,'#473d60');B(0,1.9,-5.5,.2,3.8,9,'#69586e');
 // baseboards
 for(let z of [12,-1,-10]){B(-8.5,.11,z,1,.22,.08,'#856952');B(1,.11,z,1,.22,.08,'#856952')}
 // Right wall windows, dark exterior glass panels and warm frames
@@ -103,10 +116,31 @@ for(let i=0;i<4;i++)C(-6.8+i*.38,1.43,-9.08,.16,.24,['#e6d0aa','#a9c5ba','#e3baa
 C(-3.9,1.34,-9.1,.44,.36,'#d8c0a7');S(-3.9,1.69,-9.1,.23,'#ecdabb',10,6);C(-2.5,1.45,-9.1,.17,.33,'#a07c65');
 B(-4.45,1.3,-5.0,1.1,.06,.65,'#eee2ce');C(-4.5,1.47,-5,.14,.25,'#f6ede2');C(-4.1,1.47,-5.25,.14,.25,'#e5d4be');
 plant(-8.2,-2.7,.9);B(-7.15,2.1,-.76,.88,.9,.09,'#826953');
-// WC: privacy-friendly stylized washroom props
-B(4.5,.03,-5.7,7.0,.04,7.35,'#e8e4d9');B(4.4,2.3,-9.78,5.2,1.8,.1,'#c0cdd0');B(4.4,2.3,-9.68,4.92,1.53,.05,'#8da2a9');B(4.4,1.31,-8.95,4.8,.22,1.37,'#d9c5b2');B(4.4,.65,-9.3,4.5,1.15,.75,'#a2a49e');C(4.4,1.48,-8.91,.71,.14,'#f7f5ed');C(4.4,1.51,-8.91,.45,.05,'#c3c8c6');C(4.4,1.67,-9.3,.07,.29,'#9a9c9c');B(4.4,1.8,-9.17,.21,.11,.45,'#b2b8b4');
-B(7.4,.52,-5.07,1.4,1.02,1.5,'#f1efe7');C(7.4,.29,-5.1,.64,.59,'#e7e8e2');B(7.4,1.15,-5.62,1.43,.26,.22,'#e4e4dd');B(7.9,2.2,-4.1,.42,.65,.12,'#a9b8b6');B(7.90,2.2,-4.02,.28,.35,.025,'#f7f4e9');
-B(2.18,2.6,-2.7,.13,1.7,1.3,'#c1a78d');B(2.12,2.6,-2.7,.08,1.5,1.12,'#ecede3');
+// V10 six-faces psychology room: a soft midnight-blue reflection salon (replaces the old WC).
+// Deep rug, six sculpted emotion lights and a central journal stand.
+B(4.5,.035,-5.48,7.65,.045,7.3,'#3c365b');
+C(4.5,.072,-5.47,3.0,.055,'#534568',30);C(4.5,.10,-5.47,2.58,.016,'#6e597c',30);
+C(4.5,.128,-5.47,1.60,.015,'#b58d84',30);C(4.5,.14,-5.47,1.47,.018,'#463854',30);
+// Low reading plinth keeps the center a meeting circle, not a crowded maze.
+C(4.5,.39,-5.47,.57,.55,'#635269',16);C(4.5,.69,-5.47,.69,.07,'#b69391',16);
+B(4.5,.735,-5.47,.64,.045,.45,'#f1e3ca',-.12);B(4.5,.762,-5.47,.34,.014,.015,'#b18c77',-.12);
+// Colored expressive faces along the back wall; each pair of eyes and mouth is hand built.
+const moods3D=[['#e9bb7a',1.12],['#80a4cd',2.45],['#d58b8e',3.78],['#a798d2',5.10],['#9ebfa5',6.43],['#d7b978',7.76]];
+for(let idx=0;idx<moods3D.length;idx++){
+ const [tintColor,x]=moods3D[idx];
+ B(x,2.36,-9.76,.87,1.03,.10,'#806b85');B(x,2.36,-9.68,.71,.88,.065,'#292a40');
+ S(x,2.37,-9.58,.315,tintColor,15,10);
+ // Small warm eyes and a softly expressive mouth.
+ S(x-.103,2.42,-9.29,.023,'#333044',8,6);S(x+.103,2.42,-9.29,.023,'#333044',8,6);
+ B(x,2.285+(idx===2?-.025:0),-9.27,.132,.021,.020,'#524051');
+ B(x,1.66,-9.68,.44,.055,.12,'#d9b7b4');
+}
+// Narrow wall lights and soft-arched alcoves; clear walkway down the middle.
+for(const x of [1.0,3.2,5.4,7.6]){C(x,3.54,-9.48,.03,.42,'#a588a0');S(x,3.30,-9.46,.12,'#f4d6df',9,6)}
+for(const z of [-3.2,-5.6,-7.8]){B(8.75,1.9,z,.10,2.6,1.32,'#554768');B(8.67,2.24,z,.11,1.2,.67,'#817399');S(8.58,2.73,z,.13,'#d9c9ef',9,6)}
+// A slender entry console and potted greenery, no toilet furniture or sink.
+B(1.0,.78,-3.75,.53,1.24,1.8,'#67556c');B(1.0,1.47,-3.75,.81,.10,2.05,'#9c8397');
+for(const z of [-7.6,-3.0]){C(.72,.35,z,.28,.55,'#756070');for(let i=0;i<5;i++)S(.72+Math.cos(i*1.25)*.22,.87+(i%2)*.18,z+Math.sin(i*1.25)*.23,.20,'#69877b',8,6)}
 
 // V3 bespoke interior details: in-world art, book spines, warm fixtures, layered textiles.
 function picture(x,y,z,w,h,frame,inside){B(x,y,z,w+.13,h+.13,.065,frame);B(x,y,z+.039,w,h,.018,inside)}
@@ -130,13 +164,9 @@ for(let i=0;i<7;i++){const xx=-7.5+i*.68;B(xx,2.28,-9.67,.28,.25,.17,['#f5e2c3',
 for(const [xx,zz] of [[-4.45,-5.15],[-5.2,-5.12]])C(xx,1.51,zz,.11,.075,'#f8ecdf');
 for(const z of [-6.9,-5.4,-3.9]){B(-8.76,2.75,z,.1,.08,1.12,'#9c7862');S(-8.73,2.63,z,.21,'#e6ce9e',9,6)}
 B(-4.5,.08,-3.5,3.9,.018,.06,'#d8c7ad');B(-4.5,.08,-7.3,3.9,.018,.06,'#d8c7ad');
-// WC: tile highlights, mirror, wall lamps, towels, soap pump and discrete privacy partition.
-for(let x=.45;x<8.7;x+=.78)for(let z=-9.5;z<-1.65;z+=.78){B(x,.061,z,.014,.009,.75,'#d0d6d0');B(x,.063,z,.74,.009,.014,'#d0d6d0')}
-B(4.4,2.44,-9.6,4.96,.08,.075,'#ebeee8');
-for(const x of [1.9,6.9]){B(x,2.7,-9.65,.16,.7,.16,'#baaa8b');S(x,2.36,-9.64,.24,'#fff2d0',10,6)}
-B(4.4,1.75,-8.75,.25,.09,.15,'#aab7b4');C(3.05,1.52,-8.92,.11,.29,'#e3c69d');C(3.05,1.7,-8.92,.035,.13,'#7b8d87');
-B(1.08,1.55,-5.42,.12,.13,1.55,'#adbdb5');B(1.15,1.09,-5.42,.10,.78,1.3,'#e0c7a9');
-B(6.35,1.85,-2.55,.06,1.50,2.65,'#d3d4ca');B(6.31,2.95,-2.55,.08,.07,2.65,'#bcb8ae');
+// Six-faces room: more subdued wall trim and small glowing lanterns.
+for(const x of [1.12,2.45,3.78,5.10,6.43,7.76]){B(x,.12,-9.30,.52,.08,.55,'#796783');C(x,1.29,-9.43,.023,1.88,'#72617d')}
+for(const z of [-2.7,-4.5,-6.3,-8.1]){S(8.72,3.26,z,.10,'#e2d3f4',8,6)}
 // Doorway thresholds + lights to indicate passage; thresholds never form collision geometry.
 for(const x of [-5.6,5.6]){B(x,.018,-1,2.2,.016,.37,'#b89474');B(x,3.52,-1,.94,.13,.18,'#f6e8ce');
  S(x,3.20,-.9,.14,'#ffe6ab',12,7)}
@@ -145,62 +175,92 @@ for(const x of [-5.6,5.6]){B(x,.018,-1,2.2,.016,.37,'#b89474');B(x,3.52,-1,.94,.
 function hangingLamp(x,z,drop=2.9){C(x,3.85,z,.022,.9,'#7e6757');C(x,drop,z,.24,.18,'#f7ecda');S(x,drop+.12,z,.16,'#ffe7b4',10,7)}
 for(const [x,z] of [[-2.6,4.9],[0,4.9],[2.6,4.9],[-2.4,6.4],[0,6.4],[2.4,6.4]])hangingLamp(x,z,2.95);
 for(let i=0;i<10;i++){const x=-7.2+i*1.6,z=1.1+Math.sin(i*.55)*.4;C(x,3.68,z,.018,.18,'#6f5a4f');S(x,3.57,z,.075,i%2?'#ffe8b6':'#fff2d0',8,6)}
-for(const [x,z] of [[-7.1,-6.9],[-5.2,-6.25],[-3.2,-7.1],[-1.8,-6.35]]){C(x,3.75,z,.016,.24,'#705c52');S(x,3.58,z,.07,'#ffe5a8',8,6)}
+for(const [x,z] of [[-7.1,-6.9],[-5.2,-6.25],[-3.2,-7.1],[-1.8,-6.35],[4.5,-5.4]]){C(x,3.75,z,.016,.24,'#705c52');S(x,3.58,z,.07,'#ffe5a8',8,6)}
 for(const [x,z] of [[-7.45,9.6],[-6.8,10.25],[-6.1,9.85],[6.3,9.9],[7.0,10.35],[7.6,9.7]]){S(x,3.45,z,.08,'#fff0c8',8,6);S(x,3.45,z,.04,'#ffe1a0',6,5)}
 
 function createBuffer(mesh){const array=new Float32Array(mesh.data);if(!gl)return {buf:null,count:0};let buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,array,gl.STATIC_DRAW);return {buf,count:array.length/6}}
 const staticBuffer=createBuffer(world);
-function draw(mesh,mvp){if(!gl)return;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,24,12);gl.uniformMatrix4fv(uMatrix,false,mvp);gl.drawArrays(gl.TRIANGLES,0,mesh.count)}
-const coatColors=['#c67c73','#789b8f','#8498b5','#c1a2c8','#d1ae6d','#b18b75','#c67c73'];
-
-// V7 clean storybook avatars: restrained shapes with no cheek hair, nose, ear or odd limbs.
-// Both selections use the same toy-like proportions; hair silhouette and sweater differ.
-const skinTones=['#f3d5bf','#eac9b3','#e0bda8','#f1d1bf','#e3baa7','#eac7b3'];
-const hairTones=['#37343a','#493d37','#343943','#514440','#4b403b','#35343b'];
+function draw(mesh,mvp,model=identity){if(!gl)return;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,24,12);gl.uniformMatrix4fv(uMatrix,false,mvp);gl.uniformMatrix4fv(uModel,false,model);gl.drawArrays(gl.TRIANGLES,0,mesh.count)}
+const coatColors=['#b98e73','#7b9b8d','#839bb8','#b49ac8','#c8a56b','#cd8f92'];
+// V10: softer concept-1-inspired toy proportions, knit sweaters and fuller natural hairstyles.
+// This is lightweight procedural 3D geometry, not a flat character image.
+const skinTones=['#f1cfb3','#f2d2bb','#edc9b0','#f4d0bd','#e3bba3','#ecc7b2'];
+const hairTones=['#49382f','#40352f','#392e2e','#4d382f','#3a3136','#4a3834'];
+const pantsColors=['#594638','#5b4b44','#51484b','#645048','#574638','#604a45'];
+function avatarShade(hex,f=1){const c=rgb(hex).map(v=>Math.min(1,v*f));return '#'+c.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('')}
 function makeAvatar(color,pose=0,gender='male'){
- const m=new Mesh(),sweater=coatColors[color]||coatColors[0];
- const skin=skinTones[color]||skinTones[0],hair=hairTones[color]||hairTones[0];
- const female=gender==='female',walking=pose>=1&&pose<=3,sitting=pose===4;
- const stride=pose===1?1:pose===3?-1:0,down=sitting?-.28:0;
- const ell=(...args)=>m.ellipsoid(...args);
- const trousers=['#55545e','#546067','#555d67','#605965','#666053','#555560'][color%6];
- // Clean shoes, two legs, and softly rounded trousers.
+ const m=new Mesh(),male=gender==='male',walking=pose>=1&&pose<=3,sitting=pose===4;
+ const stride=pose===1?1:pose===3?-1:0,down=sitting?-.30:0;
+ const wool=coatColors[color]||coatColors[0],knitShadow=avatarShade(wool,.78),knitLight=avatarShade(wool,1.10);
+ const skin=skinTones[color]||skinTones[0],hair=hairTones[color]||hairTones[0],pants=pantsColors[color]||pantsColors[0];
+ const ell=(...a)=>m.ellipsoid(...a);const bx=(...a)=>m.box(...a);
+ // legs and shoes: slimmer with less toy-like bulk.
  for(const side of [-1,1]){
-  const xx=side*.152,zz=walking?stride*side*.15:0;
-  if(sitting){ell(xx,.59,.19,.115,.19,.20,trousers,14,10);ell(xx,.31,.39,.108,.205,.11,trousers,14,9);ell(xx,.13,.48,.14,.08,.18,'#6a605a',13,8)}
-  else{ell(xx,.45,zz*.55,.121,.34,.126,trousers,15,11);ell(xx,.115,.07+zz,.145,.08,.18,'#6a605a',14,9)}
+  const x=side*.11,legZ=walking?stride*side*.09:0;
+  if(sitting){
+   bx(x,.43,.18,.12,.33,.15,pants,legZ*.20);
+   bx(x,.18,.42,.11,.13,.20,avatarShade(pants,.86));
+  }else{
+   bx(x,.46,legZ*.16,.12,.45,.14,pants,legZ*.16);
+   bx(x,.07,legZ*.24,.15,.10,.22,male?'#f1e5d6':'#6c5547',legZ*.10);
+  }
  }
- const bodyY=1.14+down;
- ell(0,bodyY,0,.339,.405,.244,sweater,22,15); // single smooth sweater
+ // torso: simple, clean body with smaller head proportion.
+ const bodyY=1.02+down;
+ bx(0,bodyY,0,.42,.49,.23,wool);
+ bx(0,bodyY-.285,.005,.40,.042,.21,knitShadow);
+ bx(0,bodyY+.285,.01,.22,.036,.15,knitLight);
+ if(!male){
+   bx(0,.73+down,0,.38,.17,.21,avatarShade(wool,.92));
+   bx(0,.61+down,0,.44,.11,.26,avatarShade(wool,.87));
+ }
+ for(const x of [-.125,0,.125])for(let i=0;i<3;i++)bx(x,bodyY-.15+i*.13,.121,.016,.062,.009,i%2?knitLight:knitShadow);
+ bx(.09,bodyY+.005,.125,.068,.066,.009,avatarShade(wool,.68));
+ // arms and hands
  for(const side of [-1,1]){
-  const xx=side*.351,armZ=walking?stride*side*.095:0;
-  ell(xx,bodyY-.065,armZ,.109,.274,.126,sweater,18,13);
-  ell(xx,bodyY-.316,armZ+.01,.076,.067,.079,skin,12,9);
+  const x=side*.315,armZ=walking?stride*side*.06:0;
+  bx(x,bodyY-.015,armZ,.105,.34,.125,wool,armZ*.12);
+  bx(x,bodyY-.245,armZ,.096,.040,.114,knitShadow);
+  bx(x,bodyY-.325,armZ+.004,.075,.075,.075,skin);
  }
- // Face is unobstructed: hair stays as a neat cap on top and entirely behind cheeks.
- const hy=1.83+down;
- if(female){
-  // More natural short bob: gentle volume at the back, rounded sides,
-  // and a soft front hairline without heavy cheek strands.
-  ell(0,hy-.02,-.118,.286,.302,.170,hair,24,16);    // main bob volume
-  ell(0,hy-.238,-.108,.274,.118,.155,hair,22,12);   // curved lower edge
-  ell(-.145,hy-.028,-.070,.080,.148,.110,hair,16,11); // left side
-  ell(.145,hy-.028,-.070,.080,.148,.110,hair,16,11);  // right side
-  ell(0,hy+.196,-.102,.262,.124,.172,hair,24,14);   // crown line
-  ell(-.085,hy+.118,.190,.053,.040,.030,hair,12,8); // soft left fringe
-  ell(.085,hy+.118,.190,.053,.040,.030,hair,12,8);  // soft right fringe
- }else{
-  ell(0,hy+.072,-.110,.255,.188,.143,hair,20,12);
+ // neck
+ bx(0,1.32+down,0,.10,.07,.085,skin);
+ const hy=1.73+down;
+ // Hair first (behind the face) with more pieces and more smoothing so it doesn't look like a wig.
+ if(male){
+   // Natural short cut with small top volume and tapered sides.
+   ell(0,hy+.115,-.075,.205,.145,.190,hair,30,22);   // crown/back
+   ell(0,hy+.055,-.092,.198,.112,.176,hair,28,20);   // lower back
+   ell(0,hy+.162,.028,.158,.038,.100,hair,26,16);    // front top line
+   ell(-.132,hy+.042,-.008,.052,.088,.062,hair,18,14); // left side
+   ell(.132,hy+.042,-.008,.052,.088,.062,hair,18,14);  // right side
+   ell(-.070,hy+.125,.145,.046,.030,.030,hair,14,10);  // soft front left
+   ell(.070,hy+.128,.142,.046,.030,.030,hair,14,10);   // soft front right
+  }else{
+   // Soft natural bob: rounded back, gentle sides, subtle front hairline.
+   ell(0,hy+.028,-.085,.225,.175,.200,hair,30,22);    // upper back volume
+   ell(0,hy-.078,-.068,.235,.125,.190,hair,28,20);    // lower back curve
+   ell(-.152,hy-.010,-.010,.066,.125,.088,hair,20,16); // left side
+   ell(.152,hy-.010,-.010,.066,.125,.088,hair,20,16);  // right side
+   ell(0,hy+.145,.034,.165,.038,.108,hair,24,16);     // soft fringe band
+   ell(-.085,hy+.108,.140,.042,.025,.026,hair,14,10); // tiny front left
+   ell(.085,hy+.108,.140,.042,.025,.026,hair,14,10);  // tiny front right
+  }
+ // head / face: slightly smaller than v11, more subdivided to hide polygon edges.
+ ell(0,hy,0,.205,.235,.195,skin,34,24);
+ for(const side of [-1,1])ell(side*.192,hy-.018,.005,.034,.060,.040,skin,16,12);
+ for(const side of [-1,1]){
+   ell(side*.080,hy+.004,.188,.017,.022,.008,'#392d2b',14,10); // eyes
+   ell(side*.078,hy+.077,.183,.038,.009,.007,'#5b433c',14,9); // brows
+   ell(side*.142,hy-.050,.147,.038,.017,.008,'#e4a092',14,9); // cheeks
  }
- ell(0,hy,0,.246,.288,.239,skin,24,17); // uninterrupted rounded face
- ell(0,hy+.223,-.118,.249,.135,.163,hair,24,14); // smooth cap behind the forehead, no jagged bangs
- // Delicate dot eyes and neutral expression, flush with face (no 3D protrusions).
- for(const side of [-1,1])ell(side*.092,hy+.009,.236,.014,.019,.007,'#443b3c',12,8);
- m.box(0,hy-.110,.241,.046,.008,.008,'#bb8c87');
+ ell(0,hy-.100,.182,.034,.008,.008,'#a96863',12,8);
+ ell(-.033,hy-.096,.180,.010,.007,.006,'#a96863',10,7);
+ ell(.033,hy-.096,.180,.010,.007,.006,'#a96863',10,7);
  return {...createBuffer(m),original:m};
 }
 const avatars={male:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'male'))),female:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'female')))};
-const particleMeshes={};for(const c of ['#fbd7b0','#fad4d9','#f9ecbe','#cde2d0']){const p=new Mesh();p.sphere(0,0,0,.1,c,8,5);particleMeshes[c]=createBuffer(p)}
+const particleMeshes={};for(const c of ['#fbd7b0','#fad4d9','#f9ecbe','#cde2d0','#d0a076','#f5dbb7','#f4b0c9','#c9c1fa']){const p=new Mesh();p.sphere(0,0,0,.10,c,8,5);particleMeshes[c]=createBuffer(p)}
 
 // Perspective 3D CPU fallback, for browsers with GPU acceleration blocked. Same XYZ scene, lower FPS.
 function triCache(mesh){let out=[],a=mesh.data;for(let i=0;i<a.length;i+=18){let c=[3,4,5].map(j=>Math.round(Math.min(1,a[i+j])*255));out.push([a[i],a[i+1],a[i+2],a[i+6],a[i+7],a[i+8],a[i+12],a[i+13],a[i+14],`rgb(${c.join(',')})`])}return out}
@@ -210,6 +270,6 @@ function drawSoftware(ts,people,cam,particles){
  const w=canvas.width,h=canvas.height,m=cam.matrix;let op=[];const eye=cam.eye;
  function add(tris,px=0,py=0,pz=0,rot=0){const co=Math.cos(rot),si=Math.sin(rot);for(const a of tris){let coords=[],depth=0,valid=true;for(let i=0;i<9;i+=3){const x=a[i]*co+a[i+2]*si+px,y=a[i+1]+py,z=-a[i]*si+a[i+2]*co+pz;const clipW=m[3]*x+m[7]*y+m[11]*z+m[15];if(clipW<.09){valid=false;break}let vx=(m[0]*x+m[4]*y+m[8]*z+m[12])/clipW,vy=(m[1]*x+m[5]*y+m[9]*z+m[13])/clipW;coords.push((vx*.5+.5)*w,(.5-vy*.5)*h);depth+=Math.hypot(x-eye[0],y-eye[1],z-eye[2])}if(!valid)continue;if(Math.min(coords[0],coords[2],coords[4])>w||Math.max(coords[0],coords[2],coords[4])<0||Math.min(coords[1],coords[3],coords[5])>h||Math.max(coords[1],coords[3],coords[5])<0)continue;op.push([depth/3,...coords,a[9]])}}
  add(softWorld);for(const p of people){if(cam.first&&p.self)continue;add((softAvatars[p.gender==='female'?'female':'male'][p.color]||softAvatars.male[0])[p.pose||0],p.x,0,p.z,p.rot)}
- op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#262832';softCtx.fillRect(0,0,w,h);
+ op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#141723';softCtx.fillRect(0,0,w,h);
  for(const a of op){softCtx.beginPath();softCtx.moveTo(a[1],a[2]);softCtx.lineTo(a[3],a[4]);softCtx.lineTo(a[5],a[6]);softCtx.closePath();softCtx.fillStyle=a[7];softCtx.fill();softCtx.strokeStyle=a[7];softCtx.lineWidth=.8;softCtx.lineJoin='round';softCtx.stroke()}
 }

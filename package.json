@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "7.0.0",
+  "version": "10.0.0",
   "private": true,
-  "description": "아마추어 글쓰기 v7: 귀여운 아바타, 스탠딩 다과룸, 실시간 글 공유",
+  "description": "아마추어 글쓰기 v10: 코지 니트 캐릭터, 야간 조명, 여섯 얼굴의 심리 모임방",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
