@@ -6,7 +6,7 @@ const softCtx=gl?null:canvas.getContext('2d',{alpha:false});
 if(!gl)console.info('WebGL unavailable; using perspective 3D software renderer.');
 let rendererReady=!!gl;
 const vert=`attribute vec3 aPos;attribute vec3 aColor;uniform mat4 uMatrix;uniform mat4 uModel;varying vec3 vBase;varying vec3 vWorld;varying float vFog;void main(){vec4 pos=uModel*vec4(aPos,1.);vWorld=pos.xyz;vec4 clip=uMatrix*vec4(aPos,1.);gl_Position=clip;vBase=aColor;vFog=clamp((clip.z/clip.w-.66)*.18,0.,.12);}`;
-const frag=`precision mediump float;varying vec3 vBase;varying vec3 vWorld;varying float vFog;uniform float uAmbient;uniform vec3 uFxPos;uniform vec3 uFxColor;uniform float uFxPower;
+const frag=`precision mediump float;varying vec3 vBase;varying vec3 vWorld;varying float vFog;uniform float uAmbient;uniform float uStandLampOn;uniform vec3 uFxPos;uniform vec3 uFxColor;uniform float uFxPower;
 vec3 lamp(vec3 pos,vec3 color,float intensity,float decay){vec3 d=vWorld-pos;return color*(intensity/(1.+dot(d,d)*decay));}
 void main(){
  vec3 light=vec3(.95,.96,1.08)*uAmbient;
@@ -15,14 +15,14 @@ void main(){
  light+=lamp(vec3(2.7,3.0,4.6),vec3(1.0,.76,.47),.66,.19);
  light+=lamp(vec3(-4.5,3.10,-5.2),vec3(1.0,.71,.44),1.75,.14);
  light+=lamp(vec3(4.55,2.85,-5.45),vec3(.63,.64,1.0),1.85,.14);
- light+=lamp(vec3(6.9,3.1,10.1),vec3(1.0,.73,.52),1.0,.17);
+ light+=lamp(vec3(6.9,3.1,10.1),vec3(1.0,.73,.52),1.0*uStandLampOn,.17);
  vec3 fxD=vWorld-uFxPos;light+=uFxColor*(uFxPower/(1.+dot(fxD,fxD)*.48));
  vec3 c=clamp(vBase*light,0.,1.0);
  gl_FragColor=vec4(mix(c,vec3(.055,.075,.108),vFog),1.);
 }`;
 function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
-let aPos,aColor,uMatrix,uAmbient,uModel,uFxPos,uFxColor,uFxPower;const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
-if(gl){const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vert));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);aPos=gl.getAttribLocation(program,'aPos');aColor=gl.getAttribLocation(program,'aColor');uMatrix=gl.getUniformLocation(program,'uMatrix');uModel=gl.getUniformLocation(program,'uModel');uAmbient=gl.getUniformLocation(program,'uAmbient');uFxPos=gl.getUniformLocation(program,'uFxPos');uFxColor=gl.getUniformLocation(program,'uFxColor');uFxPower=gl.getUniformLocation(program,'uFxPower');gl.uniformMatrix4fv(uModel,false,identity);gl.uniform3f(uFxPos,0,-50,0);gl.uniform3f(uFxColor,1,.8,.6);gl.uniform1f(uFxPower,0);gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.14,.16,.20,1);gl.uniform1f(uAmbient,.39);}
+let aPos,aColor,uMatrix,uAmbient,uModel,uFxPos,uFxColor,uFxPower,uStandLampOn;const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+if(gl){const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vert));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);aPos=gl.getAttribLocation(program,'aPos');aColor=gl.getAttribLocation(program,'aColor');uMatrix=gl.getUniformLocation(program,'uMatrix');uModel=gl.getUniformLocation(program,'uModel');uAmbient=gl.getUniformLocation(program,'uAmbient');uFxPos=gl.getUniformLocation(program,'uFxPos');uFxColor=gl.getUniformLocation(program,'uFxColor');uFxPower=gl.getUniformLocation(program,'uFxPower');uStandLampOn=gl.getUniformLocation(program,'uStandLampOn');gl.uniform1f(uStandLampOn,1);gl.uniformMatrix4fv(uModel,false,identity);gl.uniform3f(uFxPos,0,-50,0);gl.uniform3f(uFxColor,1,.8,.6);gl.uniform1f(uFxPower,0);gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.14,.16,.20,1);gl.uniform1f(uAmbient,.39);}
 function mul(a,b){let r=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)for(let k=0;k<4;k++)r[j*4+i]+=a[k*4+i]*b[j*4+k];return r}
 function persp(fov,aspect,near,far){let f=1/Math.tan(fov/2);let a=new Float32Array(16);a[0]=f/aspect;a[5]=f;a[10]=(far+near)/(near-far);a[11]=-1;a[14]=2*far*near/(near-far);return a}
 function norm(a){let l=Math.hypot(...a)||1;return a.map(v=>v/l)}
@@ -94,7 +94,7 @@ plant(-7.65,.25,1.2);plant(7.55,1.65,1.08);plant(-7.5,10.5,.75);
 // TV panel on center back wall (screen glows with decorative text shapes)
 B(0,2.25,-.80,4.25,2.42,.12,'#2b2b35');B(0,2.25,-.725,4.00,2.17,.08,'#344950');B(-.5,2.5,-.674,2.3,.11,.03,'#d3b99a');B(-.6,2.24,-.674,1.8,.065,.03,'#a4beb4');B(-.55,1.94,-.674,1.9,.05,.03,'#d3b99a');S(1.25,2.34,-.63,.44,'#e2c59b',11,8);
 // Warm standing lamp
-B(6.95,.05,10.15,.62,.09,.62,'#716151');C(6.95,1.75,10.15,.035,3.4,'#624d3e');cone(6.95,3.2,10.15,.48,.85,'#fff1c7');S(6.95,2.95,10.15,.15,'#ffdc8d',10,6);
+B(6.95,.05,10.15,.62,.09,.62,'#716151');C(6.95,1.75,10.15,.035,3.4,'#624d3e');cone(6.95,3.2,10.15,.48,.85,'#fff1c7'); // bulb drawn separately so it can switch off
 // Pendant lamps over meeting table - no ceiling slab over view
 for(const x of [-2,1.7]){C(x,3.75,5.1,.019,.85,'#634d42');cone(x,3.15,5.1,.57,.55,'#d5ae7e');S(x,2.83,5.1,.18,'#ffe3a1',12,6)}
 // Ceiling decoration as rails along side, no solid roof to see interiors
@@ -211,6 +211,10 @@ for(const [x,z] of [[-7.45,9.6],[-6.8,10.25],[-6.1,9.85],[6.3,9.9],[7.0,10.35],[
 
 function createBuffer(mesh){const array=new Float32Array(mesh.data);if(!gl)return {buf:null,count:0};let buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,array,gl.STATIC_DRAW);return {buf,count:array.length/6}}
 const staticBuffer=createBuffer(world);
+// Dynamic bulb meshes: the standing lamp looks lit when on and dim when off.
+const lampBulbOnMesh=new Mesh();lampBulbOnMesh.sphere(6.95,2.95,10.15,.15,'#ffdc8d',16,10);
+const lampBulbOffMesh=new Mesh();lampBulbOffMesh.sphere(6.95,2.95,10.15,.15,'#6a584a',16,10);
+const lampBulbOnBuffer=createBuffer(lampBulbOnMesh),lampBulbOffBuffer=createBuffer(lampBulbOffMesh);
 function draw(mesh,mvp,model=identity){if(!gl)return;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,24,12);gl.uniformMatrix4fv(uMatrix,false,mvp);gl.uniformMatrix4fv(uModel,false,model);gl.drawArrays(gl.TRIANGLES,0,mesh.count)}
 const coatColors=['#b98e73','#7b9b8d','#839bb8','#b49ac8','#c8a56b','#cd8f92'];
 const skinTones=['#f1cfb3','#f2d2bb','#edc9b0','#f4d0bd','#e3bba3','#ecc7b2'];
@@ -366,12 +370,12 @@ const particleMeshes={};for(const c of ['#fbd7b0','#fad4d9','#f9ecbe','#cde2d0',
 
 // Perspective 3D CPU fallback, for browsers with GPU acceleration blocked. Same XYZ scene, lower FPS.
 function triCache(mesh){let out=[],a=mesh.data;for(let i=0;i<a.length;i+=18){let c=[3,4,5].map(j=>Math.round(Math.min(1,(a[i+j]+a[i+j+6]+a[i+j+12])/3)*255));out.push([a[i],a[i+1],a[i+2],a[i+6],a[i+7],a[i+8],a[i+12],a[i+13],a[i+14],`rgb(${c.join(',')})`])}return out}
-const softWorld=gl?null:triCache(world),softAvatars=gl?null:Object.fromEntries(Object.entries(avatars).map(([gender,colors])=>[gender,colors.map(set=>set.map(a=>triCache(a.original)))]));let lastSoftDraw=0;
-function drawSoftware(ts,people,cam,particles){
+const softWorld=gl?null:triCache(world),softLampOn=gl?null:triCache(lampBulbOnMesh),softLampOff=gl?null:triCache(lampBulbOffMesh),softAvatars=gl?null:Object.fromEntries(Object.entries(avatars).map(([gender,colors])=>[gender,colors.map(set=>set.map(a=>triCache(a.original)))]));let lastSoftDraw=0;
+function drawSoftware(ts,people,cam,particles,lampOn=true){
  if(!softCtx||ts-lastSoftDraw<145)return;lastSoftDraw=ts;
  const w=canvas.width,h=canvas.height,m=cam.matrix;let op=[];const eye=cam.eye;
  function add(tris,px=0,py=0,pz=0,rot=0){const co=Math.cos(rot),si=Math.sin(rot);for(const a of tris){let coords=[],depth=0,valid=true;for(let i=0;i<9;i+=3){const x=a[i]*co+a[i+2]*si+px,y=a[i+1]+py,z=-a[i]*si+a[i+2]*co+pz;const clipW=m[3]*x+m[7]*y+m[11]*z+m[15];if(clipW<.09){valid=false;break}let vx=(m[0]*x+m[4]*y+m[8]*z+m[12])/clipW,vy=(m[1]*x+m[5]*y+m[9]*z+m[13])/clipW;coords.push((vx*.5+.5)*w,(.5-vy*.5)*h);depth+=Math.hypot(x-eye[0],y-eye[1],z-eye[2])}if(!valid)continue;if(Math.min(coords[0],coords[2],coords[4])>w||Math.max(coords[0],coords[2],coords[4])<0||Math.min(coords[1],coords[3],coords[5])>h||Math.max(coords[1],coords[3],coords[5])<0)continue;op.push([depth/3,...coords,a[9]])}}
- add(softWorld);for(const p of people){if(cam.first&&p.self)continue;add((softAvatars[p.gender==='female'?'female':'male'][p.color]||softAvatars.male[0])[p.pose||0],p.x,p.py||0,p.z,p.rot)}
+ add(softWorld);add(lampOn?softLampOn:softLampOff);for(const p of people){if(cam.first&&p.self)continue;add((softAvatars[p.gender==='female'?'female':'male'][p.color]||softAvatars.male[0])[p.pose||0],p.x,p.py||0,p.z,p.rot)}
  op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#141723';softCtx.fillRect(0,0,w,h);
  for(const a of op){softCtx.beginPath();softCtx.moveTo(a[1],a[2]);softCtx.lineTo(a[3],a[4]);softCtx.lineTo(a[5],a[6]);softCtx.closePath();softCtx.fillStyle=a[7];softCtx.fill()}
 }

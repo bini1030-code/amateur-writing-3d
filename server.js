@@ -52,11 +52,11 @@ function rate(c,key,ms){const now=Date.now();if(now-(c.last[key]||0)<ms)return f
 function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return;
   if(msg.t==='join'){
     if(c.room)return;const code=safeStr(msg.code,18).toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
-    let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],emptyAt:0};rooms.set(code,room)}
+    let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],lampOn:true,emptyAt:0};rooms.set(code,room)}
     room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,limit:LIMIT});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,lampOn:room.lampOn!==false,limit:LIMIT});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -76,6 +76,18 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
         room.history.push(entry);
         if(room.history.length>CHAT_HISTORY_LIMIT)room.history.splice(0,room.history.length-CHAT_HISTORY_LIMIT);
         broadcast(room,{t:'chat',...entry});
+      }
+      break;
+    }
+    case 'scene':{
+      if(!rate(c,'scene',550))return;
+      if(msg.action==='lamp'){
+        room.lampOn=room.lampOn===false;
+        broadcast(room,{t:'scene',action:'lamp',lampOn:room.lampOn,id:c.id,at:Date.now()});
+      }else if(msg.action==='water'){
+        const plant=safeStr(msg.plant,30);
+        if(!['main-left','main-right','main-back','tea-corner','mind-back','mind-front'].includes(plant))return;
+        broadcast(room,{t:'scene',action:'water',plant,id:c.id,name:c.name,at:Date.now()});
       }
       break;
     }
