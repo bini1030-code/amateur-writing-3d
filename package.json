@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "13.0.0",
+  "version": "14.2.0",
   "private": true,
-  "description": "아마추어 글쓰기 v13: 미니멀 사람형 캐릭터, 자연스러운 머리 윤곽과 매끄러운 표면, 여섯 얼굴의 방",
+  "description": "아마추어 글쓰기 v14 수정판: 미니멀 캐릭터, 자연스러운 머리, 치마, 빈백·해먹과 테이블 상호작용 분리",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

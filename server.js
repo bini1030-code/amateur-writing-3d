@@ -56,7 +56,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     case 'move':{
       if(!rate(c,'move',65))return;
       c.x=finite(msg.x,-8.5,8.5,c.x);c.z=finite(msg.z,-9.5,11.5,c.z);c.rot=finite(msg.rot,-20,20,c.rot);
-      c.action=safeStr(msg.action,12)==='sit'?'sit':'stand';
+      c.action=['sit','lie'].includes(safeStr(msg.action,12))?msg.action:'stand';
       broadcast(room,{t:'move',id:c.id,x:c.x,z:c.z,rot:c.rot,action:c.action},c);break;
     }
     case 'chat':{

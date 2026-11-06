@@ -192,7 +192,7 @@ const solidRects=[
  {x:1.0,z:-3.75,w:.98,h:2.20},   // entry console
  {x:.72,z:-7.6,w:.76,h:.76},{x:.72,z:-3.0,w:.76,h:.76},
  {x:2.35,z:-7.05,w:1.00,h:.86},{x:6.10,z:-7.05,w:1.00,h:.86},
- {x:7.28,z:-5.38,w:1.55,h:.95}
+ {x:7.28,z:-5.38,w:1.70,h:2.48}
  ];
 function inRect(x,z,r,margin=.14){return x>r.x-r.w/2-margin&&x<r.x+r.w/2+margin&&z>r.z-r.h/2-margin&&z<r.z+r.h/2+margin}
 function traversable(x,z){
@@ -251,6 +251,7 @@ function pathTo(x,z){
 }
 function routeTo(place){playSound('click');if(!state.connected)return;if(place===state.room){toast('이미 이 공간에 있어요.');return}
  const dest=place==='main'?[-6.93,8.85]:place==='tea'?[-5.5,-3.1]:[5.25,-3.05];
+ if(state.sitting||actor.action==='lie')standUp();
  const next=pathTo(...dest);if(!next.length){toast('통로를 찾지 못했어요. 조금 움직여 다시 시도해 주세요.');return}
  route=next;actor.action='stand';state.sitting=false;
  toast((place==='tea'?'다과룸':place==='mind'?'여섯 얼굴의 방':'모임방')+'으로 안내할게요. 통로를 따라 걸어가요.');
@@ -259,8 +260,9 @@ $$('[data-travel]').forEach(b=>b.addEventListener('click',()=>routeTo(b.dataset.
 const mindLounge=[
  {id:'beanbag-a',x:2.35,z:-7.05,rot:.28,type:'beanbag',action:'sit',label:'빈백'},
  {id:'beanbag-b',x:6.10,z:-7.05,rot:-.32,type:'beanbag',action:'sit',label:'빈백'},
- {id:'hammock',x:7.28,z:-5.38,rot:-Math.PI/2,type:'hammock',action:'lie',label:'해먹'}
+ {id:'hammock',x:7.28,z:-5.38,rot:Math.PI,type:'hammock',action:'lie',label:'해먹'}
 ];
+const mindTable={x:4.5,z:-5.47,w:1.9,h:1.9,label:'마음 테이블'};
 function offsetByRot(x,z,rot,forward=0,side=0){return {x:x+Math.sin(rot)*forward+Math.cos(rot)*side,z:z+Math.cos(rot)*forward-Math.sin(rot)*side}}
 function standUp(){
  if(!(state.sitting||actor.action==='sit'||actor.action==='lie'))return false;
@@ -270,19 +272,33 @@ function standUp(){
  else if(base.type==='beanbag')tries.push(offsetByRot(base.x,base.z,base.rot,.95,0),offsetByRot(base.x,base.z,base.rot,-.95,0),offsetByRot(base.x,base.z,base.rot,0,.85),offsetByRot(base.x,base.z,base.rot,0,-.85));
  else tries.push(offsetByRot(base.x,base.z,base.rot,-1.02,0),offsetByRot(base.x,base.z,base.rot,1.02,0),offsetByRot(base.x,base.z,base.rot,0,.92),offsetByRot(base.x,base.z,base.rot,0,-.92));
  let dest=tries.find(t=>traversable(t.x,t.z));
- if(!dest){for(let r=0;r<10&&!dest;r++){const a=Math.PI*2*r/10,c={x:base.x+Math.cos(a)*.95,z:base.z+Math.sin(a)*.95};if(traversable(c.x,c.z))dest=c}}
- if(dest){actor.x=dest.x;actor.z=dest.z}
+ if(!dest){for(const radius of [.9,1.15,1.45,1.8,2.15]){
+   for(let r=0;r<24&&!dest;r++){const a=Math.PI*2*r/24,c={x:base.x+Math.cos(a)*radius,z:base.z+Math.sin(a)*radius};if(traversable(c.x,c.z))dest=c}
+   if(dest)break;
+ }}
+ if(!dest){toast('일어날 수 있는 빈 공간을 찾지 못했어요.');return false}
+ actor.x=dest.x;actor.z=dest.z;
  actor.action='stand';state.sitting=false;state.restSpot=null;route=[];sendMove();toast('자리에서 일어났어요.');return true;
 }
-function closestMindLounge(){let best=null,dist=1e9;for(const p of mindLounge){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<2.35?best:null}
+function closestMindLounge(){
+ let best=null,dist=1e9;
+ for(const p of mindLounge){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}
+ return dist<1.48?best:null;
+}
+function nearMindTable(){
+ const d=Math.hypot(actor.x-mindTable.x,actor.z-mindTable.z);
+ return d>=1.09&&d<=1.9;
+}
+
 function useMindLounge(){
- if(state.sitting||actor.action==='lie'){standUp();return}
+ if(state.sitting||actor.action==='lie'){standUp();return true}
  const spot=closestMindLounge();
- if(!spot){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);return}
+ if(!spot)return false;
  actor.x=spot.x;actor.z=spot.z;actor.rot=spot.rot;actor.action=spot.action;state.sitting=true;state.restSpot=spot;route=[];sendMove();
  emote('spark',actor.x,actor.z);playSound(spot.type==='hammock'?'wave':'click');
- toast(spot.type==='hammock'?'해먹에 기대어 누웠어요. 천천히 마음을 돌아보세요.':'빈백에 편하게 앉았어요. 숨을 고르고 마음을 살펴봐요.');
- setTimeout(()=>{showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155)},120);
+ toast(spot.type==='hammock'?'해먹에 기대어 누웠어요. 잠시 쉬어가요.':'빈백에 편하게 앉았어요. 잠시 숨을 고를까요?');
+ lightPulse(actor.x,actor.z,'#cbb8ed',155);
+ return true;
 }
 
 function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='mind'?'✧ 여섯 얼굴의 방에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
@@ -336,10 +352,27 @@ $('#mindWrite').onclick=()=>{const r=mindRecord();if(!r)return;
 };
 $('#mindShuffle').onclick=()=>{mindPromptIndex=(mindPromptIndex+1+Math.floor(Math.random()*(mindQuestions.length-1)))%mindQuestions.length;$('#mindPrompt').textContent=mindQuestions[mindPromptIndex];playSound('spark')};
 $('#mindUnknownWrite').onclick=()=>{state.topic='아직 이름 없는 마음';state.notes=[state.notes.trim(),mindQuestions[mindPromptIndex]].filter(Boolean).join('\n');persist();setStep(2);hideMindModal();openMobilePanel('write');setTab('write');toast('마음 질문이 나의 글감으로 옮겨졌어요.')};
-function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='mind'){useMindLounge()}else{sit();setTab('write')}}
+function interact(){
+ if(state.room==='tea'){showSnackMenu();return}
+ if(state.room==='mind'){
+   if(state.sitting||actor.action==='lie'){standUp();return}
+   const nearLounge=closestMindLounge();
+   const tableReady=nearMindTable();
+   // A lounge interaction always wins within its own reach, even if the table is also nearby.
+   if(nearLounge){useMindLounge();return}
+   if(tableReady){
+     showMindModal();
+     lightPulse(actor.x,actor.z,'#cbb8ed',155);
+     return;
+   }
+   toast('빈백/해먹 가까이 가면 쉬고, 중앙 테이블 가까이 가면 마음 활동을 열 수 있어요.');
+   return;
+ }
+ sit();setTab('write')
+}
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){if(state.room==='mind')interact();else sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
 $('#camToggle').onclick=toggleCam;
@@ -349,9 +382,9 @@ canvas.addEventListener('pointerdown',e=>{pointer={down:true,id:e.pointerId,x:e.
 canvas.addEventListener('pointermove',e=>{if(!pointer.down||pointer.id!==e.pointerId)return;const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;pointer.x=e.clientX;pointer.y=e.clientY;pointer.travel+=Math.abs(dx)+Math.abs(dy);if(pointer.travel>2){cam.yaw-=dx*.006;cam.pitch=clamp(cam.pitch+dy*.004,cam.first?-.85:.04,cam.first?.85:1.17)}});
 canvas.addEventListener('pointerup',e=>{if(e.pointerId!==pointer.id)return;if(pointer.travel<8&&state.connected)floorClick(e);pointer.down=false});
 canvas.addEventListener('wheel',e=>{e.preventDefault();if(!cam.first)cam.dist=clamp(cam.dist+e.deltaY*.005,2.2,9.0)},{passive:false});
-function floorClick(e){const rect=canvas.getBoundingClientRect(),nx=(e.clientX-rect.left)/rect.width*2-1,ny=1-(e.clientY-rect.top)/rect.height*2;const forward=norm(cam.center.map((v,i)=>v-cam.eye[i]));const right=norm(cross(forward,[0,1,0])),up=cross(right,forward),t=Math.tan(Math.PI/5.1),aspect=rect.width/rect.height;const dir=norm([forward[0]+right[0]*nx*t*aspect+up[0]*ny*t,forward[1]+right[1]*nx*t*aspect+up[1]*ny*t,forward[2]+right[2]*nx*t*aspect+up[2]*ny*t]);if(dir[1]>=-.02)return;const k=-cam.eye[1]/dir[1],x=cam.eye[0]+dir[0]*k,z=cam.eye[2]+dir[2]*k;if(traversable(x,z)){const p=pathTo(x,z);if(p.length){route=p;state.sitting=false;actor.action='stand'}else toast('그곳까지 가는 통로를 찾지 못했어요.')}else toast('가구와 벽을 피해서 이동할 수 있어요.')}
+function floorClick(e){const rect=canvas.getBoundingClientRect(),nx=(e.clientX-rect.left)/rect.width*2-1,ny=1-(e.clientY-rect.top)/rect.height*2;const forward=norm(cam.center.map((v,i)=>v-cam.eye[i]));const right=norm(cross(forward,[0,1,0])),up=cross(right,forward),t=Math.tan(Math.PI/5.1),aspect=rect.width/rect.height;const dir=norm([forward[0]+right[0]*nx*t*aspect+up[0]*ny*t,forward[1]+right[1]*nx*t*aspect+up[1]*ny*t,forward[2]+right[2]*nx*t*aspect+up[2]*ny*t]);if(dir[1]>=-.02)return;const k=-cam.eye[1]/dir[1],x=cam.eye[0]+dir[0]*k,z=cam.eye[2]+dir[2]*k;if(traversable(x,z)){if(state.sitting||actor.action==='lie')standUp();const p=pathTo(x,z);if(p.length){route=p;state.sitting=false;actor.action='stand'}else toast('그곳까지 가는 통로를 찾지 못했어요.')}else toast('가구와 벽을 피해서 이동할 수 있어요.')}
 const joystick=$('#joystick');let stickId=null;
-function touchStick(e){const r=joystick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,len=Math.hypot(x,y)||1,scale=Math.min(38,len)/len;const xx=x*scale,yy=y*scale;$('#stick').style.transform=`translate(${xx}px,${yy}px)`;stick.x=xx/38;stick.z=yy/38;route=[];state.sitting=false;actor.action='stand'}
+function touchStick(e){const r=joystick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,len=Math.hypot(x,y)||1,scale=Math.min(38,len)/len;const xx=x*scale,yy=y*scale;$('#stick').style.transform=`translate(${xx}px,${yy}px)`;stick.x=xx/38;stick.z=yy/38;route=[];if(state.sitting||actor.action==='lie')standUp()}
 joystick.addEventListener('pointerdown',e=>{stickId=e.pointerId;joystick.setPointerCapture(e.pointerId);touchStick(e)});joystick.addEventListener('pointermove',e=>{if(stickId===e.pointerId)touchStick(e)});for(const event of ['pointerup','pointercancel'])joystick.addEventListener(event,()=>{stickId=null;stick.x=0;stick.z=0;$('#stick').style.transform='translate(0,0)'});
 
 function stepMove(vx,vz,dt){let n=Math.hypot(vx,vz);if(!n)return false;vx/=n;vz/=n;
@@ -404,10 +437,10 @@ function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame
  if(gl){if(burstLight&&now<burstLight.end){const color=burstLight.kind==='heart'?[1,.38,.55]:burstLight.kind==='jelly'?[.93,.54,.94]:burstLight.kind==='tea'?[.68,1,.60]:[1,.84,.54];gl.uniform3f(uFxPos,burstLight.x,burstLight.y,burstLight.z);gl.uniform3fv(uFxColor,new Float32Array(color));gl.uniform1f(uFxPower,Math.max(0,(burstLight.end-now)/1000)*2.1);}else{gl.uniform1f(uFxPower,0);}gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
   if(p.id!==state.me){p.rx+=(p.x-p.rx)*Math.min(1,dt*11);p.rz+=(p.z-p.rz)*Math.min(1,dt*11);p.rr+=(p.rot-p.rr)*Math.min(1,dt*10)}
   const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz,rot=p.id===state.me?actor.rot:p.rr;
-  const isMe=p.id===state.me,action=(isMe?actor.action:p.action),isSitting=action==='sit',isLying=action==='lie';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isLying?5:isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose],model=modelMat(x,0,z,rot);draw(m,mul(cam.matrix,model),model)}
+  const isMe=p.id===state.me,action=(isMe?actor.action:p.action),isSitting=action==='sit',isLying=action==='lie';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isLying?5:isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose],model=modelMat(x,isLying?.67:0,z,rot);draw(m,mul(cam.matrix,model),model)}
   for(const part of particles){part.life-=dt;part.x+=part.vx*dt;part.y+=part.vy*dt;part.z+=part.vz*dt;part.vy-=.7*dt;if(part.life>0)draw(particleMeshes[part.color],mul(cam.matrix,modelMat(part.x,part.y,part.z,0)),modelMat(part.x,part.y,part.z,0))}particles=particles.filter(p=>p.life>0);}
  }
- if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>{const action=p.id===state.me?actor.action:p.action;return {self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(action==='lie'?5:action==='sit'?4:0)}});drawSoftware(now,players,cam,particles)}
+ if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>{const action=p.id===state.me?actor.action:p.action;return {self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action,py:action==='lie'?.67:0,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(action==='lie'?5:action==='sit'?4:0)}});drawSoftware(now,players,cam,particles)}
  renderLightGlows();
  if(now%120<30)screenLabels();requestAnimationFrame(frame)}
 // WebRTC mesh voice: opt-in microphone, P2P audio. HTTPS/local-only; restricted NAT may require TURN.
