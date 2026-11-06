@@ -46,7 +46,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     if(c.room)return;const code=safeStr(msg.code,18).toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
     let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null};rooms.set(code,room)}
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
-    c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=7.6+Math.floor(room.clients.size/5)*.78;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
+    c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
     send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,limit:LIMIT});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;

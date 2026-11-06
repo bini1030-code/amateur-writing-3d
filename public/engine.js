@@ -31,15 +31,19 @@ function lookAt(e,c){let z=norm([e[0]-c[0],e[1]-c[1],e[2]-c[2]]),x=norm(cross([0
 function modelMat(x,y,z,rot){let c=Math.cos(rot||0),s=Math.sin(rot||0);return new Float32Array([c,0,-s,0,0,1,0,0,s,0,c,0,x,y,z,1])}
 function rgb(hex){let h=hex.replace('#','');let n=parseInt(h,16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]}
 function tint(c,f){return c.map(v=>Math.min(1,v*f))}
-class Mesh{constructor(){this.data=[]}tri(a,b,c,color){for(const v of [a,b,c])this.data.push(v[0],v[1],v[2],...color)}quad(a,b,c,d,col){this.tri(a,b,c,col);this.tri(a,c,d,col)}box(x,y,z,w,h,d,hex,rot=0){let c=rgb(hex),a=w/2,b=h/2,k=d/2,si=Math.sin(rot),co=Math.cos(rot);let local=[[-a,-b,-k],[a,-b,-k],[a,b,-k],[-a,b,-k],[-a,-b,k],[a,-b,k],[a,b,k],[-a,b,k]];let v=local.map(p=>[x+p[0]*co+p[2]*si,y+p[1],z-p[0]*si+p[2]*co]);const faces=[[0,1,2,3,.69],[5,4,7,6,.96],[4,0,3,7,.79],[1,5,6,2,.82],[3,2,6,7,1.13],[4,5,1,0,.60]];faces.forEach(f=>this.quad(v[f[0]],v[f[1]],v[f[2]],v[f[3]],tint(c,f[4])))}
+class Mesh{constructor(){this.data=[]}tri(a,b,c,color){for(const v of [a,b,c])this.data.push(v[0],v[1],v[2],...color)}triSmooth(a,b,c,ca,cb,cc){for(const [v,col] of [[a,ca],[b,cb],[c,cc]])this.data.push(v[0],v[1],v[2],...col)}quadSmooth(a,b,c,d,ca,cb,cc,cd){this.triSmooth(a,b,c,ca,cb,cc);this.triSmooth(a,c,d,ca,cc,cd)}quad(a,b,c,d,col){this.tri(a,b,c,col);this.tri(a,c,d,col)}box(x,y,z,w,h,d,hex,rot=0){let c=rgb(hex),a=w/2,b=h/2,k=d/2,si=Math.sin(rot),co=Math.cos(rot);let local=[[-a,-b,-k],[a,-b,-k],[a,b,-k],[-a,b,-k],[-a,-b,k],[a,-b,k],[a,b,k],[-a,b,k]];let v=local.map(p=>[x+p[0]*co+p[2]*si,y+p[1],z-p[0]*si+p[2]*co]);const faces=[[0,1,2,3,.69],[5,4,7,6,.96],[4,0,3,7,.79],[1,5,6,2,.82],[3,2,6,7,1.13],[4,5,1,0,.60]];faces.forEach(f=>this.quad(v[f[0]],v[f[1]],v[f[2]],v[f[3]],tint(c,f[4])))}
  sphere(x,y,z,r,hex,segments=10,rings=7){let c=rgb(hex);for(let j=0;j<rings;j++){let v0=-Math.PI/2+j*Math.PI/rings,v1=-Math.PI/2+(j+1)*Math.PI/rings;for(let i=0;i<segments;i++){let u0=i*2*Math.PI/segments,u1=(i+1)*2*Math.PI/segments;let p=(u,v)=>[x+r*Math.cos(v)*Math.cos(u),y+r*Math.sin(v),z+r*Math.cos(v)*Math.sin(u)];let shade=tint(c,.85+.19*Math.cos(v1));this.quad(p(u0,v0),p(u1,v0),p(u1,v1),p(u0,v1),shade)}}}
  cylinder(x,y,z,r,h,hex,segments=12){let c=rgb(hex);for(let i=0;i<segments;i++){let a=i*2*Math.PI/segments,b=(i+1)*2*Math.PI/segments;let p=(u,j)=>[x+Math.cos(u)*r,y+(j? h/2:-h/2),z+Math.sin(u)*r];this.quad(p(a,0),p(b,0),p(b,1),p(a,1),tint(c,.75+.27*Math.sin(a+1)));this.tri([x,y+h/2,z],p(a,1),p(b,1),tint(c,1.07))}}
  ellipsoid(x,y,z,rx,ry,rz,hex,segments=14,rings=10){
-  const c=rgb(hex), pt=(u,v)=>[x+rx*Math.cos(v)*Math.cos(u),y+ry*Math.sin(v),z+rz*Math.cos(v)*Math.sin(u)];
+  // Per-vertex color interpolation: adjacent polygons share the SAME color at their shared edges.
+  // This removes the old polygon-by-polygon tint bands from faces, hair and clothes.
+  const base=rgb(hex), pt=(u,v)=>[x+rx*Math.cos(v)*Math.cos(u),y+ry*Math.sin(v),z+rz*Math.cos(v)*Math.sin(u)];
+  const shade=(u,v)=>tint(base,.95+.085*Math.cos(v)*Math.cos(u-.7)+.045*Math.sin(v));
   for(let j=0;j<rings;j++){const v0=-Math.PI/2+j*Math.PI/rings,v1=-Math.PI/2+(j+1)*Math.PI/rings;
    for(let i=0;i<segments;i++){const u0=i*2*Math.PI/segments,u1=(i+1)*2*Math.PI/segments;
-    this.quad(pt(u0,v0),pt(u1,v0),pt(u1,v1),pt(u0,v1),tint(c,.93+.10*Math.sin(u0+1.2)+.09*Math.cos(v1)))}}
+    this.quadSmooth(pt(u0,v0),pt(u1,v0),pt(u1,v1),pt(u0,v1),shade(u0,v0),shade(u1,v0),shade(u1,v1),shade(u0,v1));}}
  }
+
  limb(a,b,r,hex,segments=10){
   const axis=norm([b[0]-a[0],b[1]-a[1],b[2]-a[2]]);
   const guide=Math.abs(axis[1])>.91?[1,0,0]:[0,1,0];const side=norm(cross(axis,guide)),other=cross(side,axis),col=rgb(hex);
@@ -182,88 +186,106 @@ function createBuffer(mesh){const array=new Float32Array(mesh.data);if(!gl)retur
 const staticBuffer=createBuffer(world);
 function draw(mesh,mvp,model=identity){if(!gl)return;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,24,12);gl.uniformMatrix4fv(uMatrix,false,mvp);gl.uniformMatrix4fv(uModel,false,model);gl.drawArrays(gl.TRIANGLES,0,mesh.count)}
 const coatColors=['#b98e73','#7b9b8d','#839bb8','#b49ac8','#c8a56b','#cd8f92'];
-// V10: softer concept-1-inspired toy proportions, knit sweaters and fuller natural hairstyles.
+// V13: natural minimalist people with smaller faces and smooth, scalp-hugging hair shells.
 // This is lightweight procedural 3D geometry, not a flat character image.
 const skinTones=['#f1cfb3','#f2d2bb','#edc9b0','#f4d0bd','#e3bba3','#ecc7b2'];
 const hairTones=['#49382f','#40352f','#392e2e','#4d382f','#3a3136','#4a3834'];
 const pantsColors=['#594638','#5b4b44','#51484b','#645048','#574638','#604a45'];
 function avatarShade(hex,f=1){const c=rgb(hex).map(v=>Math.min(1,v*f));return '#'+c.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('')}
+// V13: simpler, adult-proportion human figures inspired by minimalist social spaces.
+// Smooth lofted clothing; the hairstyles are continuous scalp-hugging meshes (NOT stacked spheres).
+function smoothLoft(mesh,rings,hex,segments=20){
+ const base=rgb(hex),point=(u,r)=>[r.x+Math.cos(u)*r.rx,r.y,r.z+Math.sin(u)*r.rz];
+ const col=(u,r)=>tint(base,.91+.085*Math.cos(u-.85)+.035*(r.y-.9));
+ for(let j=0;j<rings.length-1;j++)for(let i=0;i<segments;i++){
+  const a=i*2*Math.PI/segments,b=(i+1)*2*Math.PI/segments,r0=rings[j],r1=rings[j+1];
+  mesh.quadSmooth(point(a,r0),point(b,r0),point(b,r1),point(a,r1),col(a,r0),col(b,r0),col(b,r1),col(a,r1));
+ }
+}
+function singleHairShell(mesh,hy,gender,hex){
+ const male=gender==='male',base=rgb(hex),segments=24,levels=10;
+ // Hairline varies smoothly from forehead to temples to back, so the cap is continuous.
+ // In model-local coords: +Z faces the viewer.
+ function edge(u){
+  const front=Math.max(0,Math.sin(u)),back=Math.max(0,-Math.sin(u)),side=Math.abs(Math.cos(u));
+  if(male){const part=Math.exp(-Math.pow((u-1.07)/.24,2));return 1.56-.43*front+.12*back+.08*Math.sin(2*u)-.12*part;}
+  const part=Math.exp(-Math.pow((u-1.09)/.28,2));return 2.13-.94*front+.31*back+.11*side+.08*Math.sin(2*u+.4)-.11*part;
+ }
+ function pt(u,t){const theta=t*edge(u),cx=Math.cos(u),sz=Math.sin(u);
+  const rx=male?.199:.214,ry=male?.230:.226,rz=male?.184:.202;
+  // subtle side part at the front without separate hair blobs
+  const part=(!male&&sz>0)? .008*Math.cos(u*2):0;
+  return [rx*Math.sin(theta)*cx + part,hy+ry*Math.cos(theta),rz*Math.sin(theta)*sz-.002];
+ }
+ function col(u,t){const spec=.065*Math.cos(u-.72)+.025*Math.cos(u*3+.5)*Math.sin(Math.PI*t);
+  return tint(base,.91+spec+.04*(1-t));}
+ for(let j=0;j<levels;j++)for(let i=0;i<segments;i++){
+  const a=i*2*Math.PI/segments,b=(i+1)*2*Math.PI/segments,t0=j/levels,t1=(j+1)/levels;
+  mesh.quadSmooth(pt(a,t0),pt(b,t0),pt(b,t1),pt(a,t1),col(a,t0),col(b,t0),col(b,t1),col(a,t1));
+ }
+}
 function makeAvatar(color,pose=0,gender='male'){
  const m=new Mesh(),male=gender==='male',walking=pose>=1&&pose<=3,sitting=pose===4;
- const stride=pose===1?1:pose===3?-1:0,down=sitting?-.30:0;
- const wool=coatColors[color]||coatColors[0],knitShadow=avatarShade(wool,.78),knitLight=avatarShade(wool,1.10);
+ const stride=pose===1?1:pose===3?-1:0,down=sitting?-.28:0;
+ const wool=coatColors[color]||coatColors[0],darkWool=avatarShade(wool,.88);
  const skin=skinTones[color]||skinTones[0],hair=hairTones[color]||hairTones[0],pants=pantsColors[color]||pantsColors[0];
- const ell=(...a)=>m.ellipsoid(...a);const bx=(...a)=>m.box(...a);
- // legs and shoes: slimmer with less toy-like bulk.
+ const ell=(...args)=>m.ellipsoid(...args);
+ // Natural slender feet and two separate straight/stepping trouser legs.
  for(const side of [-1,1]){
-  const x=side*.11,legZ=walking?stride*side*.09:0;
+  const x=side*.112,step=walking?side*stride*.10:0;
   if(sitting){
-   bx(x,.43,.18,.12,.33,.15,pants,legZ*.20);
-   bx(x,.18,.42,.11,.13,.20,avatarShade(pants,.86));
+   ell(x,.47,.24,.105,.16,.20,pants,26,18);
+   ell(x,.24,.43,.09,.19,.11,pants,26,18);
+   ell(x,.105,.51,.112,.075,.168,'#e6ded4',14,8);
   }else{
-   bx(x,.46,legZ*.16,.12,.45,.14,pants,legZ*.16);
-   bx(x,.07,legZ*.24,.15,.10,.22,male?'#f1e5d6':'#6c5547',legZ*.10);
+   smoothLoft(m,[
+    {x,y:.15,z:step,rx:.078,rz:.09},
+    {x,y:.26,z:step*.8,rx:.084,rz:.095},
+    {x,y:.55,z:step*.25,rx:.093,rz:.105},
+    {x,y:.80,z:0,rx:.107,rz:.12}
+   ],pants,18);
+   ell(x,.10,step+.055,.116,.075,.155,'#e6ded4',14,8);
   }
  }
- // torso: simple, clean body with smaller head proportion.
- const bodyY=1.02+down;
- bx(0,bodyY,0,.42,.49,.23,wool);
- bx(0,bodyY-.285,.005,.40,.042,.21,knitShadow);
- bx(0,bodyY+.285,.01,.22,.036,.15,knitLight);
- if(!male){
-   bx(0,.73+down,0,.38,.17,.21,avatarShade(wool,.92));
-   bx(0,.61+down,0,.44,.11,.26,avatarShade(wool,.87));
- }
- for(const x of [-.125,0,.125])for(let i=0;i<3;i++)bx(x,bodyY-.15+i*.13,.121,.016,.062,.009,i%2?knitLight:knitShadow);
- bx(.09,bodyY+.005,.125,.068,.066,.009,avatarShade(wool,.68));
- // arms and hands
+ // Clothes are slightly tapered, not box-shaped and not balloon-round.
+ smoothLoft(m,[
+  {x:0,y:.73+down,z:0,rx:.213,rz:.146},
+  {x:0,y:.82+down,z:0,rx:.217,rz:.145},
+  {x:0,y:1.06+down,z:0,rx:.222,rz:.142},
+  {x:0,y:1.30+down,z:0,rx:.239,rz:.146},
+  {x:0,y:1.41+down,z:0,rx:.160,rz:.118},
+  {x:0,y:1.44+down,z:0,rx:.085,rz:.082}
+ ],wool,22);
+ // Subtle neck and hem; no busy fake knit/polygon stripes.
+ ell(0,.755+down,0,.211,.034,.146,darkWool,14,8);
+ ell(0,1.427+down,.006,.108,.042,.082,darkWool,14,8);
+ // Shoulder-to-wrist arm silhouette with smooth rounding.
  for(const side of [-1,1]){
-  const x=side*.315,armZ=walking?stride*side*.06:0;
-  bx(x,bodyY-.015,armZ,.105,.34,.125,wool,armZ*.12);
-  bx(x,bodyY-.245,armZ,.096,.040,.114,knitShadow);
-  bx(x,bodyY-.325,armZ+.004,.075,.075,.075,skin);
+  const x=side*.29,armz=walking?stride*side*.065:0;
+  ell(x,1.105+down,armz,.082,.305,.092,wool,16,9);
+  ell(x, .87+down,armz+.008,.092,.044,.096,darkWool,10,6);
+  ell(x,.795+down,armz+.012,.068,.073,.068,skin,10,6);
  }
- // neck
- bx(0,1.32+down,0,.10,.07,.085,skin);
- const hy=1.73+down;
- // Hair first (behind the face) with more pieces and more smoothing so it doesn't look like a wig.
- if(male){
-   // Natural short cut with small top volume and tapered sides.
-   ell(0,hy+.115,-.075,.205,.145,.190,hair,30,22);   // crown/back
-   ell(0,hy+.055,-.092,.198,.112,.176,hair,28,20);   // lower back
-   ell(0,hy+.162,.028,.158,.038,.100,hair,26,16);    // front top line
-   ell(-.132,hy+.042,-.008,.052,.088,.062,hair,18,14); // left side
-   ell(.132,hy+.042,-.008,.052,.088,.062,hair,18,14);  // right side
-   ell(-.070,hy+.125,.145,.046,.030,.030,hair,14,10);  // soft front left
-   ell(.070,hy+.128,.142,.046,.030,.030,hair,14,10);   // soft front right
-  }else{
-   // Soft natural bob: rounded back, gentle sides, subtle front hairline.
-   ell(0,hy+.028,-.085,.225,.175,.200,hair,30,22);    // upper back volume
-   ell(0,hy-.078,-.068,.235,.125,.190,hair,28,20);    // lower back curve
-   ell(-.152,hy-.010,-.010,.066,.125,.088,hair,20,16); // left side
-   ell(.152,hy-.010,-.010,.066,.125,.088,hair,20,16);  // right side
-   ell(0,hy+.145,.034,.165,.038,.108,hair,24,16);     // soft fringe band
-   ell(-.085,hy+.108,.140,.042,.025,.026,hair,14,10); // tiny front left
-   ell(.085,hy+.108,.140,.042,.025,.026,hair,14,10);  // tiny front right
-  }
- // head / face: slightly smaller than v11, more subdivided to hide polygon edges.
- ell(0,hy,0,.205,.235,.195,skin,34,24);
- for(const side of [-1,1])ell(side*.192,hy-.018,.005,.034,.060,.040,skin,16,12);
+ // A human-sized head: smaller and less round than v12 (head width ~0.36, shoulders ~0.68).
+ const hy=1.686+down;
+ ell(0,hy,0,.185,.213,.169,skin,24,14);
+ for(const side of [-1,1])ell(side*.182,hy-.024,-.006,.033,.055,.036,skin,10,6);
+ // Head-hugging single-surface haircut; two gender variations without glued-on tufts.
+ singleHairShell(m,hy,gender,hair);
+ // Friendly but restrained face markings.
+ const ink='#3c3230';
  for(const side of [-1,1]){
-   ell(side*.080,hy+.004,.188,.017,.022,.008,'#392d2b',14,10); // eyes
-   ell(side*.078,hy+.077,.183,.038,.009,.007,'#5b433c',14,9); // brows
-   ell(side*.142,hy-.050,.147,.038,.017,.008,'#e4a092',14,9); // cheeks
+  ell(side*.069,hy+.003,.168,.013,.018,.006,ink,8,5);
+  ell(side*.072,hy+.068,.159,.036,.007,.006,'#634944',8,5);
  }
- ell(0,hy-.100,.182,.034,.008,.008,'#a96863',12,8);
- ell(-.033,hy-.096,.180,.010,.007,.006,'#a96863',10,7);
- ell(.033,hy-.096,.180,.010,.007,.006,'#a96863',10,7);
+ ell(0,hy-.087,.168,.031,.007,.006,'#a86d69',8,5);
  return {...createBuffer(m),original:m};
 }
 const avatars={male:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'male'))),female:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'female')))};
 const particleMeshes={};for(const c of ['#fbd7b0','#fad4d9','#f9ecbe','#cde2d0','#d0a076','#f5dbb7','#f4b0c9','#c9c1fa']){const p=new Mesh();p.sphere(0,0,0,.10,c,8,5);particleMeshes[c]=createBuffer(p)}
 
 // Perspective 3D CPU fallback, for browsers with GPU acceleration blocked. Same XYZ scene, lower FPS.
-function triCache(mesh){let out=[],a=mesh.data;for(let i=0;i<a.length;i+=18){let c=[3,4,5].map(j=>Math.round(Math.min(1,a[i+j])*255));out.push([a[i],a[i+1],a[i+2],a[i+6],a[i+7],a[i+8],a[i+12],a[i+13],a[i+14],`rgb(${c.join(',')})`])}return out}
+function triCache(mesh){let out=[],a=mesh.data;for(let i=0;i<a.length;i+=18){let c=[3,4,5].map(j=>Math.round(Math.min(1,(a[i+j]+a[i+j+6]+a[i+j+12])/3)*255));out.push([a[i],a[i+1],a[i+2],a[i+6],a[i+7],a[i+8],a[i+12],a[i+13],a[i+14],`rgb(${c.join(',')})`])}return out}
 const softWorld=gl?null:triCache(world),softAvatars=gl?null:Object.fromEntries(Object.entries(avatars).map(([gender,colors])=>[gender,colors.map(set=>set.map(a=>triCache(a.original)))]));let lastSoftDraw=0;
 function drawSoftware(ts,people,cam,particles){
  if(!softCtx||ts-lastSoftDraw<145)return;lastSoftDraw=ts;
@@ -271,5 +293,5 @@ function drawSoftware(ts,people,cam,particles){
  function add(tris,px=0,py=0,pz=0,rot=0){const co=Math.cos(rot),si=Math.sin(rot);for(const a of tris){let coords=[],depth=0,valid=true;for(let i=0;i<9;i+=3){const x=a[i]*co+a[i+2]*si+px,y=a[i+1]+py,z=-a[i]*si+a[i+2]*co+pz;const clipW=m[3]*x+m[7]*y+m[11]*z+m[15];if(clipW<.09){valid=false;break}let vx=(m[0]*x+m[4]*y+m[8]*z+m[12])/clipW,vy=(m[1]*x+m[5]*y+m[9]*z+m[13])/clipW;coords.push((vx*.5+.5)*w,(.5-vy*.5)*h);depth+=Math.hypot(x-eye[0],y-eye[1],z-eye[2])}if(!valid)continue;if(Math.min(coords[0],coords[2],coords[4])>w||Math.max(coords[0],coords[2],coords[4])<0||Math.min(coords[1],coords[3],coords[5])>h||Math.max(coords[1],coords[3],coords[5])<0)continue;op.push([depth/3,...coords,a[9]])}}
  add(softWorld);for(const p of people){if(cam.first&&p.self)continue;add((softAvatars[p.gender==='female'?'female':'male'][p.color]||softAvatars.male[0])[p.pose||0],p.x,0,p.z,p.rot)}
  op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#141723';softCtx.fillRect(0,0,w,h);
- for(const a of op){softCtx.beginPath();softCtx.moveTo(a[1],a[2]);softCtx.lineTo(a[3],a[4]);softCtx.lineTo(a[5],a[6]);softCtx.closePath();softCtx.fillStyle=a[7];softCtx.fill();softCtx.strokeStyle=a[7];softCtx.lineWidth=.8;softCtx.lineJoin='round';softCtx.stroke()}
+ for(const a of op){softCtx.beginPath();softCtx.moveTo(a[1],a[2]);softCtx.lineTo(a[3],a[4]);softCtx.lineTo(a[5],a[6]);softCtx.closePath();softCtx.fillStyle=a[7];softCtx.fill()}
 }

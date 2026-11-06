@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "10.0.0",
+  "version": "13.0.0",
   "private": true,
-  "description": "아마추어 글쓰기 v10: 코지 니트 캐릭터, 야간 조명, 여섯 얼굴의 심리 모임방",
+  "description": "아마추어 글쓰기 v13: 미니멀 사람형 캐릭터, 자연스러운 머리 윤곽과 매끄러운 표면, 여섯 얼굴의 방",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
