@@ -1,0 +1,10 @@
+{
+  "name": "amateur-writing-3d-multiplayer",
+  "version": "4.0.0",
+  "private": true,
+  "description": "아마추어 글쓰기: 자유 이동 3D 소셜 글쓰기 모임",
+  "main": "server.js",
+  "scripts": {"start": "node server.js", "test": "node test.js"},
+  "engines": {"node": ">=18"},
+  "license": "UNLICENSED"
+}

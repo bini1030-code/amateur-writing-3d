@@ -1,0 +1,42 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#141a20"><title>아마추어 글쓰기 · 밤의 문장들 | 3D 모임</title><link rel="stylesheet" href="/style.css"></head><body>
+<div id="app">
+  <main id="space">
+    <canvas id="world" aria-label="3D 모임 공간"></canvas>
+    <div class="vignette"></div>
+    <div class="topbar">
+      <div class="brand"><div class="symbol">文<span>.</span></div><div><div class="pretitle">AN EVENING OF WORDS</div><div class="brandtitle">아마추어 글쓰기</div></div></div>
+      <div class="roomtop"><span class="live"><span class="live-dot"></span> LIVE ROOM <b id="roomCode">NIGHT</b></span><span class="count"><span id="count">1</span> / 20 함께</span><button id="copy" title="모임 초대 주소 복사">초대 링크 <span>↗</span></button></div>
+    </div>
+    <div class="chapter"><div class="eyebrow" id="zoneLabel">THE WRITING ROOM</div><h1 id="zoneTitle">밤의 문장들</h1><p id="zoneSub">서로의 이야기가 머무는 작은 방</p></div>
+    <div id="worldlabels"></div><div id="fxlayer" aria-hidden="true"></div>
+    <div class="hud-bottom">
+      <div class="controls"><div class="control-title">HOW TO MOVE</div><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 <span class="dotsep">·</span> 마우스 드래그 둘러보기 <span class="dotsep">·</span> <kbd>V</kbd> 1인칭/3인칭</div><div><kbd>E</kbd> 가까운 사물 이용 <span class="dotsep">·</span> <kbd>F</kbd> 의자에 앉기 <span class="dotsep">·</span> <kbd>Enter</kbd> 채팅</div></div>
+      <div class="worldactions"><button id="camToggle" title="1인칭 또는 3인칭 전환">◉ <span>시점</span></button><button id="soundToggle" title="효과음 끄고 켜기">♫ <span>소리 켬</span></button></div>
+    </div>
+    <div class="navigation"><button data-travel="main"><span>✎</span> 모임방</button><button data-travel="tea"><span>☕</span> 다과룸</button><button data-travel="wc"><span>◈</span> 화장실</button></div>
+    <div class="mobileMove" id="joystick" aria-label="이동 조이스틱"><div class="joystick-hint">MOVE</div><div id="stick"></div></div>
+    <div class="mobileTouchActions"><button type="button" id="mobileInteract" aria-label="앉기 또는 이용하기"><span>🪑</span><small>앉기·이용</small></button></div>
+    <div class="effectToast" id="toast" role="status"></div>
+  </main>
+  <div class="mobilePanelScrim" id="mobilePanelScrim"></div>
+  <nav class="mobileDock" aria-label="모임 메뉴"><button type="button" data-open-tab="write"><span>✎</span> 글쓰기</button><button type="button" data-open-tab="together"><span>♡</span> 함께</button><button type="button" data-open-tab="chat"><span>☏</span> 대화</button><button type="button" id="mobileSeat"><span>🪑</span> 앉기</button></nav>
+  <aside id="sidebar"><div class="mobilePanelHeader"><span class="panelHandle"></span><strong id="mobilePanelTitle">나의 글쓰기</strong><button type="button" id="closeMobilePanel" aria-label="3D 공간으로 돌아가기">✕</button></div>
+    <div class="tabs" role="tablist"><button class="selected" data-tab="write">✎ <span>나의 글</span></button><button data-tab="together">♡ <span>함께</span></button><button data-tab="chat">☏ <span>대화</span></button></div>
+    <section class="tabpane active" id="writePane">
+      <div class="panelhead"><div class="eyebrow">01 / WRITE YOUR NIGHT</div><h2>오늘, 어떤 문장을<br>꺼내 놓을까요?</h2><p>잘 쓰려고 애쓰지 않아도 괜찮아요.</p></div>
+      <div class="steps"><button data-step="0" class="active"><em>01</em> 생각</button><button data-step="1"><em>02</em> 글감</button><button data-step="2"><em>03</em> 글쓰기</button><button data-step="3"><em>04</em> 낭독</button></div>
+      <div id="writingContent"></div>
+    </section>
+    <section class="tabpane" id="togetherPane">
+      <div class="panelhead"><div class="eyebrow">02 / TOGETHER</div><h2>같이 있다는 것</h2><p>오늘 이 방에 있는 사람들과 마음을 나눠요.</p></div>
+      <div class="section-title">함께 있는 사람 <span id="peopleCount">1</span></div><div id="people"></div>
+      <div class="section-title">마음을 전하기</div><div class="reactions"><button data-react="heart">💗<small>마음</small></button><button data-react="clap">👏<small>박수</small></button><button data-react="spark">✨<small>반짝</small></button><button data-react="wave">👋<small>인사</small></button><button data-react="tea">☕<small>차 한 잔</small></button></div>
+      <div class="voicepanel"><h3>🎙 함께 낭독하기</h3><p>음성을 켜면 같은 방에 있는 사람들과 실시간으로 말할 수 있어요. 글을 읽는 분을 조용히 들어 주세요.</p><button id="micToggle" class="button secondary">마이크 연결하기</button><div class="micnote" id="micState">HTTPS 또는 localhost에서 사용 가능 · 참여자의 동의 필요</div></div>
+    </section>
+    <section class="tabpane chatpane" id="chatPane"><div class="panelhead"><div class="eyebrow">03 / CONVERSATION</div><h2>곁에 있는 사람에게</h2><p>서로를 평가하지 않고 이야기를 건네요.</p></div><div id="messages"></div><form id="chatForm"><input id="chatInput" autocomplete="off" maxlength="200" placeholder="따뜻한 한마디..." aria-label="채팅 입력"><button aria-label="채팅 전송">↗</button></form><div class="privacy">공개 모임이므로 연락처·민감한 개인정보는 공유하지 마세요.</div></section>
+    <div class="sidebarFoot">✦ 밤이 깊을수록, 이야기는 더 선명해집니다.</div>
+  </aside>
+</div>
+<div id="entrance" class="overlay"><div class="enterCard"><div class="enterArt"><div class="artGlow"></div><div class="starfield">✧ &nbsp;&nbsp; ✦ &nbsp;&nbsp;&nbsp; ✧</div><div class="enterArtTitle">조금 서툰 문장으로도<br>우리는 서로에게 닿아요.</div><div class="artNote">A quiet room for the things we couldn't say.</div></div><div class="enterForm"><div class="eyebrow">WELCOME TO OUR LITTLE ROOM</div><h2>아마추어<br><i>글쓰기</i></h2><p>따뜻한 불빛 아래 모여, 한 편씩 우리 이야기를 적습니다. 마음이 준비되면 들어오세요.</p><label for="nickname">어떤 이름으로 불러드릴까요?</label><input id="nickname" maxlength="18" placeholder="예: 달빛 필자" autocomplete="nickname"><label for="inviteCode">모임방 코드 <small>같은 코드를 쓰면 같은 공간에 접속해요</small></label><input id="inviteCode" maxlength="18" value="NIGHT" autocomplete="off"><label id="avatarTypeLabel">캐릭터 선택</label><div class="avatarTypes" id="avatarTypes" role="group" aria-labelledby="avatarTypeLabel"><button type="button" class="chosen" data-gender="male" aria-pressed="true"><span class="avatarBadge maleBadge" aria-hidden="true"><i class="badgeHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>남자 캐릭터</span></button><button type="button" data-gender="female" aria-pressed="false"><span class="avatarBadge femaleBadge" aria-hidden="true"><i class="badgeBackHair"></i><i class="badgeHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>여자 캐릭터</span></button></div><label>옷 색상 선택</label><div class="colors" id="colors" aria-label="아바타 색상 선택"><button data-color="0" class="chosen" style="--c:#c67c73" aria-label="다홍"></button><button data-color="1" style="--c:#789b8f" aria-label="연두"></button><button data-color="2" style="--c:#8498b5" aria-label="파랑"></button><button data-color="3" style="--c:#c1a2c8" aria-label="보라"></button><button data-color="4" style="--c:#d1ae6d" aria-label="노랑"></button><button data-color="5" style="--c:#b18b75" aria-label="갈색"></button></div><button id="enterBtn" class="enterButton">오늘의 방으로 들어가기 <span>↗</span></button><small class="notice">글은 내 브라우저에 저장되며, 낭독할 때에만 참여자에게 공개돼요. 마이크는 직접 켜야 합니다.</small><div id="entryError" role="status"></div></div></div></div>
+<div id="reading" class="overlay hidden"><div class="readCard"><div class="readTop"><span>THE LISTENING HOUR · 함께 읽는 시간</span><button id="closeReading" aria-label="닫기">✕</button></div><div class="readMid"><div class="readIcon">❝</div><p id="readSpeaker"></p><h2 id="readTitle"></h2><div class="readBody" id="readText"></div></div><div class="readBottom"><div class="readHint" id="readHint"></div><div class="readBtns"><button id="acceptReading" class="button primary hidden">제가 대신 읽을게요</button><button id="ttsBtn" class="button secondary">🔊 기기에서 글 읽기</button><button id="endReading" class="button subtle">낭독 종료</button><button class="button primary" data-react="clap">👏 박수 보내기</button></div></div></div></div>
+<script src="/engine.js"></script><script src="/game.js"></script></body></html>
