@@ -27,7 +27,17 @@ function send(c,m){if(!c||c.socket.destroyed)return;try{c.socket.write(encode(m)
 function broadcast(room,m,except){if(!room)return;for(const c of room.clients.values())if(c!==except)send(c,m)}
 function cleanRoom(room){if(room?.clients.size===0)rooms.delete(room.code)}
 function peers(room){return [...room.clients.values()].map(c=>({id:c.id,name:c.name,color:c.color,gender:c.gender,x:c.x,z:c.z,rot:c.rot,action:c.action}));}
-function leave(c){if(!c.room)return;const room=c.room;room.clients.delete(c.id);broadcast(room,{t:'leave',id:c.id});if(room.reading?.from===c.id)room.reading=null;if(room.reading?.requester===c.id)room.reading=null;c.room=null;cleanRoom(room)}
+function leave(c){
+  if(!c.room)return;const room=c.room;room.clients.delete(c.id);
+  broadcast(room,{t:'leave',id:c.id});
+  if(room.reading?.from===c.id||room.reading?.requester===c.id){
+    room.reading=null;broadcast(room,{t:'reading',reading:null});
+  }else if(room.reading?.hostId===c.id){
+    room.reading={...room.reading,mode:'request',hostId:null,hostName:null,at:Date.now()};
+    broadcast(room,{t:'reading',reading:room.reading});
+  }
+  c.room=null;cleanRoom(room);
+}
 function finite(n,min,max,fallback){return typeof n==='number'&&Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback}
 function safeStr(t,n){return typeof t==='string'?t.trim().slice(0,n):''}
 function rate(c,key,ms){const now=Date.now();if(now-(c.last[key]||0)<ms)return false;c.last[key]=now;return true}
@@ -54,7 +64,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     }
     case 'react':{
       if(!rate(c,'react',650))return;
-      const kind=['heart','clap','spark','tea','wave'].includes(msg.kind)?msg.kind:'heart';
+      const kind=['heart','clap','spark','tea','wave','cookie','jelly'].includes(msg.kind)?msg.kind:'heart';
       broadcast(room,{t:'react',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
     case 'reading':{

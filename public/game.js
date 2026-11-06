@@ -14,7 +14,7 @@ function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');cl
 function playSound(kind='click'){
   if(state.muted)return;
   try{audioContext??=new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')audioContext.resume();
-  const patterns={enter:[[523,.0,.14],[659,.13,.17],[784,.27,.26]],click:[[660,0,.07]],walk:[[150,0,.035]],step:[[115,0,.065],[165,.028,.042]],heart:[[523,0,.12],[784,.12,.22]],clap:[[240,0,.065],[330,.07,.07],[420,.15,.09]],spark:[[880,0,.08],[1175,.10,.10],[1320,.2,.20]],tea:[[445,0,.17],[659,.14,.22]],door:[[260,0,.06],[400,.10,.15],[580,.22,.18]],wave:[[580,0,.08],[725,.09,.16]],reading:[[392,0,.16],[523,.17,.20],[784,.39,.24]]};
+  const patterns={enter:[[523,.0,.14],[659,.13,.17],[784,.27,.26]],click:[[660,0,.07]],walk:[[150,0,.035]],step:[[115,0,.065],[165,.028,.042]],heart:[[523,0,.12],[784,.12,.22]],clap:[[240,0,.065],[330,.07,.07],[420,.15,.09]],spark:[[880,0,.08],[1175,.10,.10],[1320,.2,.20]],tea:[[445,0,.17],[659,.14,.22]],cookie:[[490,0,.05],[330,.07,.08],[520,.16,.13]],jelly:[[780,0,.06],[990,.10,.07],[730,.18,.14]],door:[[260,0,.06],[400,.10,.15],[580,.22,.18]],wave:[[580,0,.08],[725,.09,.16]],reading:[[392,0,.16],[523,.17,.20],[784,.39,.24]]};
   const now=audioContext.currentTime;for(const [freq,delay,len] of (patterns[kind]||patterns.click)){
     const osc=audioContext.createOscillator(),gain=audioContext.createGain();osc.type=kind==='clap'?'triangle':'sine';osc.frequency.setValueAtTime(freq,now+delay);gain.gain.setValueAtTime(0.0001,now+delay);gain.gain.exponentialRampToValueAtTime(kind==='clap'?.055:.035,now+delay+.008);gain.gain.exponentialRampToValueAtTime(.0001,now+delay+len);osc.connect(gain);gain.connect(audioContext.destination);osc.start(now+delay);osc.stop(now+delay+len+.018);
   }}catch(e){}
@@ -36,7 +36,7 @@ function message(p){
   case 'leave':{let gone=peers.get(p.id);if(gone)addSystem(gone.name+' 님이 나갔어요.');peers.delete(p.id);const pc=rtc.get(p.id);if(pc){pc.close();rtc.delete(p.id)}document.getElementById('audio-'+p.id)?.remove();renderPeople();break;}
   case 'move':{const other=peers.get(p.id);if(other){other.moving=Math.hypot(other.x-p.x,other.z-p.z)>.02;other.lastMoved=performance.now();other.x=p.x;other.z=p.z;other.rot=p.rot;other.action=p.action;}break;}
   case 'chat':{const isMe=p.id===state.me;addChat(p.name,p.text,isMe);bubble(p.id,p.text);break;}
-  case 'react':{const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
+  case 'react':{const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
   case 'reading':showReading(p.reading);if(p.reading){toast(p.reading.mode==='request'?p.reading.name+' 님이 대신 읽기를 부탁했어요.':'함께 낭독하는 시간이 시작됐어요.');playSound('reading')}else toast('낭독을 마쳤어요. 따뜻한 박수를 보내요.');break;
   case 'signal':handleSignal(p.from,p.data);break;
   case 'error':toast(p.message);joinFail(p.message);break;
@@ -47,10 +47,10 @@ function renderPeople(){$('#count').textContent=peers.size;$('#peopleCount').tex
 function addChat(name,text,mine=false){const elt=document.createElement('div');elt.className='msg'+(mine?' mine':'');const strong=document.createElement('strong');strong.textContent=name;const body=document.createElement('span');body.textContent=text;elt.append(strong,body);$('#messages').append(elt);if($('#messages').children.length>100)$('#messages').firstChild.remove();$('#messages').scrollTop=$('#messages').scrollHeight;}
 function addSystem(text){const el=document.createElement('div');el.className='msg system';el.textContent=text;$('#messages').append(el);$('#messages').scrollTop=$('#messages').scrollHeight;}
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
-const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕'};
+const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬'};
 function emote(kind,x,z){const screen=screenAt([x,2.5,z]);if(screen){let p=document.createElement('div');p.className='floatEmoji';p.textContent=reactionEmoji[kind]||'✨';p.style.left=screen[0]+'px';p.style.top=screen[1]+'px';p.style.setProperty('--dx',(Math.random()*75-35)+'px');$('#fxlayer').append(p);setTimeout(()=>p.remove(),1950)}
  if(!$('#reading').classList.contains('hidden')){const card=$('.readCard');for(let j=0;j<4;j++){let e=document.createElement('span');e.className='readBurst';e.textContent=reactionEmoji[kind]||'✨';e.style.left=(20+Math.random()*60)+'%';e.style.top=(68+Math.random()*16)+'%';card.append(e);setTimeout(()=>e.remove(),1850)}}
- for(let i=0;i<13;i++){const colors=kind==='heart'?['#fad4d9','#fbd7b0']:kind==='tea'?['#cde2d0','#f9ecbe']:['#fbd7b0','#f9ecbe'];particles.push({x,y:1+Math.random()*1.1,z,vx:(Math.random()-.5)*1.7,vy:1.2+Math.random()*1.4,vz:(Math.random()-.5)*1.7,life:1.2+Math.random()*.6,color:colors[i%colors.length]})}}
+ for(let i=0;i<13;i++){const colors=kind==='heart'?['#fad4d9','#fbd7b0']:kind==='tea'?['#cde2d0','#f9ecbe']:kind==='cookie'?['#d0a076','#f5dbb7']:kind==='jelly'?['#f4b0c9','#c9c1fa']:['#fbd7b0','#f9ecbe'];particles.push({x,y:1+Math.random()*1.1,z,vx:(Math.random()-.5)*1.7,vy:1.2+Math.random()*1.4,vz:(Math.random()-.5)*1.7,life:1.2+Math.random()*.6,color:colors[i%colors.length]})}}
 function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);playSound(kind)}
 $$('[data-react]').forEach(b=>b.addEventListener('click',()=>react(b.dataset.react)));
 $('#chatForm').addEventListener('submit',e=>{e.preventDefault();const el=$('#chatInput'),t=el.value.trim();if(!t||!state.connected)return;send({t:'chat',text:t.slice(0,200)});el.value='';setTab('chat')});
@@ -60,7 +60,7 @@ function renderWriting(){const s=state.step;let h='';
  if(s===0)h=`<div class="stagehead">마음의 서랍 열기</div><p class="stage-desc">지금 내 마음에 가장 오래 머무는 생각은 무엇일까요?</p><div class="stagequote">“오늘 내가 가장 많이 느낀 감정은 무엇이었나요?”</div><label class="lab">생각을 순서 없이 적어 보세요</label><textarea class="field" id="notes" placeholder="사건, 기억, 걱정, 감사… 무엇이든 좋아요.">${escapeHtml(state.notes)}</textarea><div class="rowbtn"><button class="button primary" data-action="next">글감 찾기 →</button></div>`;
  if(s===1)h=`<div class="stagehead">글감 찾기</div><p class="stage-desc">마음에 닿는 문장이 있다면 그곳에서 시작해 보세요.</p><div class="stagequote" id="topicQuote">${escapeHtml(state.topic||prompts[0])}</div><button class="button secondary" data-action="shuffle">↻ 다른 글감 보여주기</button><label class="lab">나만의 글감</label><input class="field" id="topic" placeholder="직접 떠올린 주제도 좋아요" value="${escapeHtml(state.topic)}"><div class="rowbtn"><button class="button primary" data-action="next">문장 쓰기 →</button><button class="button subtle" data-action="prev">← 돌아가기</button></div>`;
  if(s===2)h=`<div class="stagehead">나의 문장 만들기</div><p class="stage-desc">부담 없이 적고, 나누고 싶은 만큼만 나누어요. 글은 이 기기에 자동 저장돼요.</p><label class="lab">제목</label><input class="field" id="storyTitle" maxlength="80" placeholder="아직 제목 없는 이야기" value="${escapeHtml(state.title)}"><label class="lab">본문</label><textarea class="field big" id="story" placeholder="오늘 밤에는 이런 이야기를 남기고 싶어요…">${escapeHtml(state.story)}</textarea><div class="timer"><small class="muted" id="len">${state.story.length} 글자 · 기기에 자동 저장</small><strong id="time">${timeFormat(state.timer)}</strong></div><div class="rowbtn"><button class="button secondary" data-action="timer">${state.running?'Ⅱ 타이머 멈추기':'▷ 20분 글쓰기 타이머'}</button><button class="button secondary" data-action="download">↓ 나의 글 저장</button><button class="button primary" data-action="next">낭독하기 →</button></div>`;
- if(s===3)h=`<div class="stagehead">함께 읽는 밤</div><p class="stage-desc">글이 완벽하지 않아도 괜찮아요. 누군가의 마음을 듣는 것만으로 이 공간은 따뜻해져요.</p><div class="stagequote">“부끄러워도 괜찮아요. 당신의 문장을 소중하게 듣겠습니다.”</div><div class="rowbtn"><button class="button primary" data-action="self">🎙 모두에게 내 글 보여주기</button><button class="button secondary" data-action="request">♡ 진행자에게 대신 읽기 부탁하기</button></div><p class="muted">공유를 선택하면 방에 있는 모두에게 글이 표시됩니다. 음성 대화를 쓰려면 ‘함께’ 탭에서 마이크를 연결하세요. 마이크 없이도 기기 읽기 기능을 사용할 수 있어요.</p><div class="rowbtn"><button class="button subtle" data-action="prev">← 글 수정하기</button><button class="button secondary" data-action="download">↓ 내 글 저장</button></div>`;
+ if(s===3)h=`<div class="stagehead">함께 읽는 밤</div><p class="stage-desc">글이 완벽하지 않아도 괜찮아요. 누군가의 마음을 듣는 것만으로 이 공간은 따뜻해져요.</p><div class="stagequote">“부끄러워도 괜찮아요. 당신의 문장을 소중하게 듣겠습니다.”</div><div class="rowbtn"><button class="button primary" data-action="self">📖 모두에게 내 글 나누기</button><button class="button secondary" data-action="request">♡ 진행자에게 대신 읽기 부탁하기</button></div><p class="muted">공유하면 다른 사람에게 책 도착 알림이 뜹니다. 각자 원할 때 책을 펼쳐 읽을 수 있어요. 음성 대화를 쓰려면 ‘함께’ 탭에서 마이크를 연결하세요. 마이크 없이도 기기 읽기 기능을 사용할 수 있어요.</p><div class="rowbtn"><button class="button subtle" data-action="prev">← 글 수정하기</button><button class="button secondary" data-action="download">↓ 내 글 저장</button></div>`;
  $('#writingContent').innerHTML=h;$$('.steps button').forEach(b=>b.classList.toggle('active',+b.dataset.step===s));}
 function timeFormat(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
 function setStep(i){state.step=clamp(i,0,3);playSound();renderWriting()}
@@ -75,12 +75,92 @@ $('#writingContent').addEventListener('click',e=>{const b=e.target.closest('[dat
  }});
 function downloadWriting(){const text=`아마추어 글쓰기 — ${state.name}\n\n글감: ${state.topic}\n제목: ${state.title||'제목 없는 글'}\n\n${state.story}`;const blob=new Blob([text],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='아마추어글쓰기_나의글.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('내 글을 저장했어요.');playSound('spark')}
 setInterval(()=>{if(state.running&&state.timer>0){state.timer--;if($('#time'))$('#time').textContent=timeFormat(state.timer);if(state.timer===0){state.running=false;playSound('reading');toast('글쓰기 시간이 되었어요. 문장을 나눠 볼까요?')}}},1000);
-function showReading(r){state.read=r;if(!r){$('#reading').classList.add('hidden');if('speechSynthesis' in window)speechSynthesis.cancel();return}readingRequest=r.mode==='request';$('#reading').classList.remove('hidden');$('#readSpeaker').textContent=r.mode==='request'?r.name+' 님이 대신 읽어 주기를 기다려요':r.mode==='host'?(r.hostName||'진행자')+' 님이 '+r.name+' 님의 글을 대신 읽어요':r.name+' 님이 글을 나눠 주셨어요';$('#readTitle').textContent=r.title;$('#readText').textContent=r.text;$('#readHint').textContent=r.mode==='request'?'함께하는 누구나 대신 읽어줄 수 있어요.': '사람의 이야기를 들을 때, 마음이 편안해져요.';$('#acceptReading').classList.toggle('hidden',r.mode!=='request');$('#endReading').classList.toggle('hidden',![r.from,r.hostId].includes(state.me));
+// V6 / Private page turns: reading data is shared, but book visibility and page are local.
+const bookState={open:false,page:0,pages:[],lastIdentity:'',compact:matchMedia('(max-width:700px)').matches};
+function paginateBook(text,limit){
+  // Preserve line breaks while splitting long paragraphs safely, including Korean text.
+  const out=[];let page='';
+  const flush=()=>{if(page){out.push(page.trimEnd());page=''}};
+  const lines=String(text||'').replace(/\r\n?/g,'\n').split('\n');
+  for(let i=0;i<lines.length;i++){
+    let line=lines[i];
+    if(i>0){if(page.length+1>limit)flush();else page+='\n'}
+    while(line.length){
+      const space=limit-page.length;
+      if(space<28){flush();continue}
+      if(line.length<=space){page+=line;line='';continue}
+      let n=space;const lastSpace=line.slice(0,n).lastIndexOf(' ');
+      if(lastSpace>n*.65)n=lastSpace+1;
+      page+=line.slice(0,n);line=line.slice(n);flush();
+    }
+  }
+  flush();return out.length?out:[''];
 }
-$('#closeReading').onclick=()=>{$('#reading').classList.add('hidden');if('speechSynthesis' in window)speechSynthesis.cancel()};
+function refreshBookPages(){
+  if(!state.read)return;
+  const small=matchMedia('(max-width:700px)').matches;
+  const before=bookState.page;
+  if(small!==bookState.compact||!bookState.pages.length){
+    // Recalculate after a device orientation or window size change.
+    bookState.compact=small;bookState.pages=paginateBook(state.read.text,small?150:170);
+    bookState.page=small?Math.min(before,bookState.pages.length-1):Math.floor(before/2)*2;
+  }
+  bookState.page=Math.max(0,Math.min(bookState.page,bookState.pages.length-1));
+  const n=bookState.page, last=bookState.pages.length,step=small?1:2;
+  $('#bookLeft').textContent=bookState.pages[n]||'';
+  $('#leftPageNumber').textContent=`${n+1}`;
+  $('#bookRight').textContent=bookState.pages[n+1]||'';
+  $('#rightPageNumber').textContent=n+1<last?`${n+2}`:'';
+  $('#bookProgress').textContent=small?`${n+1} / ${last}쪽`:`${n+1}${n+1<last?'–'+(n+2):''} / ${last}쪽`;
+  $('#bookPrev').disabled=n===0;
+  $('#bookNext').disabled=n+step>=last;
+  $('.bookPageRight').classList.toggle('blankPage',n+1>=last);
+}
+function openBook(){
+  if(!state.read)return;
+  // On mobile, the writing drawer must close so the book is unobstructed.
+  $('#sidebar').classList.remove('panelOpen');
+  $('#mobilePanelScrim').classList.remove('visible');
+  bookState.open=true;
+  $('#reading').classList.remove('hidden');$('#reading').setAttribute('aria-hidden','false');
+  $('#space').classList.add('book-is-open');
+  $('#bookNotice').classList.add('hidden');
+  refreshBookPages();playSound('click');
+}
+function closeBook(){
+  bookState.open=false;$('#reading').classList.add('hidden');$('#reading').setAttribute('aria-hidden','true');
+  $('#space').classList.remove('book-is-open');
+  if(state.read)$('#bookNotice').classList.remove('hidden');
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+}
+function showReading(r){
+  const old=bookState.lastIdentity;
+  state.read=r;
+  if(!r){bookState.lastIdentity='';bookState.page=0;bookState.pages=[];closeBook();$('#bookNotice').classList.add('hidden');return}
+  const identity=JSON.stringify([r.from,r.title,r.text]);
+  const changed=identity!==old;
+  bookState.lastIdentity=identity;
+  if(changed){bookState.page=0;bookState.pages=[];}
+  $('#readSpeaker').textContent=r.mode==='request'?r.name+' 님이 대신 읽어 줄 분을 기다려요':r.mode==='host'?(r.hostName||'함께하는 분')+' 님이 '+r.name+' 님의 글을 대신 읽어요':r.name+' 님이 글을 나눠 주셨어요';
+  $('#readTitle').textContent=r.title||'제목 없는 글';
+  $('#readHint').textContent=r.mode==='request'?'이 글을 대신 읽고 싶다면 아래 버튼을 눌러 주세요.':'한 사람의 문장을, 각자의 속도로 읽어요.';
+  $('#acceptReading').classList.toggle('hidden',r.mode!=='request');
+  $('#endReading').classList.toggle('hidden',![r.from,r.hostId].includes(state.me));
+  $('#bookNoticeTitle').textContent=changed?'📖 새로운 글이 도착했어요':'📖 함께 읽는 글';
+  $('#bookNoticeBy').textContent=(r.name||'참가자')+' · '+(r.title||'제목 없는 글');
+  refreshBookPages();
+  if(bookState.open){$('#reading').classList.remove('hidden');$('#bookNotice').classList.add('hidden');}
+  else{$('#reading').classList.add('hidden');$('#bookNotice').classList.remove('hidden');}
+}
+$('#openBook').onclick=openBook;
+$('#closeReading').onclick=closeBook;
+$('#bookPrev').onclick=()=>{bookState.page=Math.max(0,bookState.page-(bookState.compact?1:2));refreshBookPages();playSound('click')};
+$('#bookNext').onclick=()=>{bookState.page=Math.min(bookState.pages.length-1,bookState.page+(bookState.compact?1:2));refreshBookPages();playSound('click')};
 $('#acceptReading').onclick=()=>{send({t:'acceptRead'});playSound('heart')};
 $('#endReading').onclick=()=>send({t:'endRead'});
-$('#ttsBtn').onclick=()=>{if(!state.read)return;if(!('speechSynthesis' in window)){toast('이 브라우저는 글 읽기 기능을 지원하지 않아요.');return}speechSynthesis.cancel();const utter=new SpeechSynthesisUtterance((state.read.title||'')+'. '+state.read.text);utter.lang='ko-KR';utter.rate=.9;utter.pitch=.96;speechSynthesis.speak(utter);toast('이 기기에서 글을 읽습니다. 실제 마이크 음성은 별도로 연결하세요.')};
+$('#ttsBtn').onclick=()=>{if(!state.read)return;if(!('speechSynthesis' in window)){toast('이 브라우저는 글 읽기 기능을 지원하지 않아요.');return}speechSynthesis.cancel();const utter=new SpeechSynthesisUtterance((state.read.title||'')+'. '+state.read.text);utter.lang='ko-KR';utter.rate=.9;utter.pitch=.96;speechSynthesis.speak(utter);toast('내 기기에서만 글을 읽어요. 다른 사람의 마이크에는 전송되지 않습니다.')};
+window.addEventListener('resize',()=>{if(!state.read)return;const small=matchMedia('(max-width:700px)').matches;if(small!==bookState.compact){bookState.pages=[];refreshBookPages()}});
+
 // Rooms are one continuous 3D model. These paths go THROUGH the physical doorways.
 
 function roomOf(x,z){return z>=-1?'main':x<0?'tea':'wc'}
@@ -92,7 +172,7 @@ function traversable(x,z){
  if(z>-1.32&&z<-.68&&!((x>-6.58&&x<-4.62)||(x>4.62&&x<6.58)))return false;
  if(z>3.03&&z<6.99&&x>-4.78&&x<4.41)return false;
  if(z<-8.24&&x<-1.1)return false; // tea counter
- if(z<-3.90&&z>-6.3&&x>-6.55&&x<-2.45)return false; // tea table
+ if(z<-5.96&&z>-4.18&&x>-6.58&&x<-2.42)return false; // standing snack table
  if(z<-3.9&&z>-6.6&&x>6.48)return false; // toilet
  if(z<-1.20&&z>-3.93&&x>6.17&&x<6.53)return false; // washroom privacy partition
  if(z<-8.42&&x>3.02&&x<5.82)return false; // wash basin
@@ -157,13 +237,24 @@ function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요'
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
  for(let i=0;i<8;i++){particles.push({x:actor.x+(Math.random()-.5)*.8,y:.6+Math.random(),z:actor.z+(Math.random()-.5)*.7,vx:(Math.random()-.5)*.45,vy:.6,vz:(Math.random()-.5)*.45,life:.65+Math.random()*.6,color:i%2?'#f9ecbe':'#cde2d0'})}
 }
-function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE TEA ROOM','차 한 잔의 여유','따뜻한 온기가 머무는 다과룸'],wc:['THE QUIET ROOM','잠깐의 쉼','손을 씻고 마음을 정리하는 화장실']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
+function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],wc:['THE QUIET ROOM','잠깐의 쉼','손을 씻고 마음을 정리하는 화장실']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){const seats=[...[-3.4,-1.5,.7,2.9].map(x=>({x,z:7.5,rot:Math.PI})),...[-3.4,-1.5,.7,2.9].map(x=>({x,z:2.5,rot:0})),{x:-5.4,z:4.4,rot:Math.PI/2},{x:4.85,z:4.5,rot:-Math.PI/2}];let best=null,dist=1e9;for(const p of seats){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<3.3?best:null}
 function sit(){if(state.sitting){state.sitting=false;actor.action='stand';sendMove();toast('자리에서 일어났어요.');return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
-function interact(){if(state.room==='tea'){react('tea');toast('따뜻한 차를 따라 마셨어요. 🍵')}else if(state.room==='wc'){emote('spark',actor.x,actor.z);playSound('tea');toast('손을 씻고 잠시 마음을 가다듬었어요.')}else{sit();setTab('write')}}
+function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
+ const el=$('#snackMenu');el.classList.remove('hidden');el.setAttribute('aria-hidden','false');
+ playSound('click');}
+function hideSnackMenu(){const el=$('#snackMenu');el.classList.add('hidden');el.setAttribute('aria-hidden','true')}
+function eatSnack(kind){if(!state.connected||state.room!=='tea'){hideSnackMenu();return}
+ const labels={tea:'따뜻한 차 한 잔 ☕',cookie:'바삭한 과자 🍪',jelly:'말랑한 젤리 🍬'};
+ if(!Object.prototype.hasOwnProperty.call(labels,kind))return;
+ hideSnackMenu();if(state.sitting){state.sitting=false;actor.action='stand';sendMove()}
+ react(kind);toast(labels[kind]+' · 서서 맛있게 즐겼어요!');}
+$('#snackMenuClose').onclick=hideSnackMenu;
+$('#snackMenu').addEventListener('click',e=>{if(e.target.id==='snackMenu')hideSnackMenu();const button=e.target.closest('[data-snack]');if(button)eatSnack(button.dataset.snack)});
+function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='wc'){emote('spark',actor.x,actor.z);playSound('tea');toast('손을 씻고 잠시 마음을 가다듬었어요.')}else{sit();setTab('write')}}
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#reading').classList.contains('hidden'))$('#reading').classList.add('hidden');else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting){state.sitting=false;actor.action='stand'}}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting){state.sitting=false;actor.action='stand'}}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
 $('#camToggle').onclick=toggleCam;
@@ -270,7 +361,7 @@ function closeMobilePanel(){ $('#sidebar').classList.remove('panelOpen');$('#mob
 $$('[data-open-tab]').forEach(b=>b.addEventListener('click',()=>{playSound();openMobilePanel(b.dataset.openTab)}));
 $('#closeMobilePanel').onclick=closeMobilePanel;
 $('#mobilePanelScrim').onclick=closeMobilePanel;
-$('#mobileSeat').onclick=()=>{if(state.room==='main')sit();else interact()};
+$('#mobileSeat').onclick=interact;
 $('#mobileInteract').onclick=interact;
 window.addEventListener('resize',()=>{if(!isMobile())closeMobilePanel()});
 $$('.tabs button').forEach(b=>b.addEventListener('click',()=>{if(isMobile())$('#mobilePanelTitle').textContent=({write:'나의 글쓰기',together:'함께하기',chat:'모임 대화'})[b.dataset.tab]}));

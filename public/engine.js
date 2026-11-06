@@ -83,10 +83,19 @@ for(const x of [-2,1.7]){C(x,3.75,5.1,.019,.85,'#634d42');cone(x,3.15,5.1,.57,.5
 // Ceiling decoration as rails along side, no solid roof to see interiors
 for(const x of [-8.7,8.7])B(x,4.04,5.5,.22,.15,13,'#76584d');
 // Seats are intentionally empty: only connected humans appear as avatars.
-// Tea room: rug, kitchenette, shelves, tea and chairs
-B(-4.5,.027,-5.4,6.7,.03,6.2,'#9c7d67');B(-4.5,.05,-5.4,6.28,.012,5.83,'#bba08b');B(-4.5,.47,-5.1,3.6,.2,1.85,'#9a7254');B(-4.5,.64,-5.1,3.75,.085,1.98,'#cfac88');for(let x of [-5.85,-3.15])for(let z of [-5.8,-4.45])B(x,.25,z,.15,.47,.15,'#775b4c');
-for(let x of [-7,-1.9]){chair(x,-5.1,x<0?Math.PI/2:-Math.PI/2,'#d0aa83')}
-for(const z of [-2.9,-7.4])chair(-4.5,z,z<-5?0:Math.PI,'#8c7774');
+// Tea room: an entirely standing-only snack bar. No chairs or sitting props.
+B(-4.5,.027,-5.4,6.7,.03,6.2,'#9c7d67');B(-4.5,.05,-5.4,6.28,.012,5.83,'#bba08b');
+// Rounded-looking standing counter: taller, narrower than the old seated table.
+B(-4.5,.67,-5.1,3.60,1.34,1.43,'#9a7254');B(-4.5,1.38,-5.1,3.85,.12,1.66,'#ead4b7');
+for(const x of [-5.85,-3.15])for(const z of [-5.56,-4.64])B(x,.28,z,.14,.48,.15,'#735948');
+// Serving area: tea on the left, cookies in the middle, colorful jellies on the right.
+function cookie(x,y,z,r=.13){world.ellipsoid(x,y,z,r,.062,r,'#ca9860',14,7);for(const [dx,dz] of [[-.047,-.035],[.042,.029],[.012,-.055]])S(x+dx,y+.057,z+dz,.017,'#715044',8,5)}
+C(-5.70,1.51,-5.07,.31,.06,'#fff6e7');C(-5.96,1.57,-5.07,.13,.18,'#f4e7d6');C(-5.87,1.68,-5.07,.09,.012,'#ad795d');S(-5.75,1.64,-5.07,.043,'#e7d4bb',9,6);
+C(-4.54,1.51,-5.07,.52,.07,'#f7eee5');for(const [dx,dz] of [[-.23,0],[.02,.09],[.25,-.045]])cookie(-4.54+dx,1.60,-5.07+dz,.145);
+C(-3.32,1.49,-5.08,.46,.07,'#f8efe0');for(const [dx,dz,c] of [[-.18,0,'#e99ab1'],[.1,.11,'#e9c76b'],[.20,-.12,'#b5cfac'],[-.08,-.16,'#bdb2d7']])world.ellipsoid(-3.32+dx,1.62,-5.08+dz,.12,.115,.108,c,12,9);
+// Floor standing markers are flat mats, not seats.
+for(const x of [-5.75,-4.48,-3.2]){B(x,.062,-3.70,.55,.014,.36,'#e1c7aa');B(x,.075,-3.70,.40,.005,.025,'#c39f79');}
+
 // counter against back wall
 B(-4.6,.57,-9.15,7.6,1.15,1.2,'#b8a188');B(-4.6,1.21,-9.15,7.8,.13,1.35,'#e4d0b3');for(const x of [-7,-4.2,-1.6])B(x,.56,-8.49,.045,.85,.055,'#816b55');
 for(const y of [2.0,2.65]){B(-4.6,y,-9.77,7.3,.12,.45,'#755d4f');for(let i=0;i<9;i++){let x=-7.85+i*.79;B(x,y+.26,-9.72,.12+i%3*.04,.39+i%3*.09,.3,i%3?'#c99c64':'#8a867b')}}
@@ -117,7 +126,8 @@ for(let i=0;i<13;i++){const z=.7+i*.79;S(-8.75,3.74,z,.065,i%2?'#e5c08f':'#ffe4b
 picture(-3.9,2.55,-9.7,1.9,.81,'#83685a','#9faca1');
 for(let i=0;i<4;i++){const xx=-5.25+i*.50;C(xx,1.35,-9.05,.19,.12,'#f4eee5');S(xx,1.47,-9.05,.13,['#d1a579','#ceb79b','#c69a7f','#a98975'][i],10,6)}
 for(let i=0;i<7;i++){const xx=-7.5+i*.68;B(xx,2.28,-9.67,.28,.25,.17,['#f5e2c3','#cdbba3','#778e79','#a88b78'][i%4]);}
-for(const [xx,zz] of [[-4.45,-5.15],[-5.2,-5.12]])C(xx,1.02,zz,.15,.16,'#f8ecdf');
+// Tea table snacks are rendered above the standing counter at y=1.4 and stay clear of the walking path.
+for(const [xx,zz] of [[-4.45,-5.15],[-5.2,-5.12]])C(xx,1.51,zz,.11,.075,'#f8ecdf');
 for(const z of [-6.9,-5.4,-3.9]){B(-8.76,2.75,z,.1,.08,1.12,'#9c7862');S(-8.73,2.63,z,.21,'#e6ce9e',9,6)}
 B(-4.5,.08,-3.5,3.9,.018,.06,'#d8c7ad');B(-4.5,.08,-7.3,3.9,.018,.06,'#d8c7ad');
 // WC: tile highlights, mirror, wall lamps, towels, soap pump and discrete privacy partition.
@@ -136,74 +146,43 @@ const staticBuffer=createBuffer(world);
 function draw(mesh,mvp){if(!gl)return;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,24,12);gl.uniformMatrix4fv(uMatrix,false,mvp);gl.drawArrays(gl.TRIANGLES,0,mesh.count)}
 const coatColors=['#c67c73','#789b8f','#8498b5','#c1a2c8','#d1ae6d','#b18b75','#c67c73'];
 
-// V5 soft-room avatars: deliberately understated, friendly miniature figures.
-// Inspired by calm communal 3D spaces, not a copy of any third-party character asset.
-// Hair stays completely behind the facial plane. No ears / nose / cheek strands / joint blobs.
-const skinTones=['#f0ceb5','#e9c4ad','#dfb99e','#f1d0b8','#ddb397','#eac7b2'];
-const hairTones=['#393237','#4c3b34','#2c3640','#594743','#46382f','#353338'];
+// V7 clean storybook avatars: restrained shapes with no cheek hair, nose, ear or odd limbs.
+// Both selections use the same toy-like proportions; hair silhouette and sweater differ.
+const skinTones=['#f3d5bf','#eac9b3','#e0bda8','#f1d1bf','#e3baa7','#eac7b3'];
+const hairTones=['#37343a','#493d37','#343943','#514440','#4b403b','#35343b'];
 function makeAvatar(color,pose=0,gender='male'){
  const m=new Mesh(),sweater=coatColors[color]||coatColors[0];
  const skin=skinTones[color]||skinTones[0],hair=hairTones[color]||hairTones[0];
  const female=gender==='female',walking=pose>=1&&pose<=3,sitting=pose===4;
- const step=pose===1?1:pose===3?-1:0,drop=sitting?-.30:0;
- const ell=(...a)=>m.ellipsoid(...a);
- // Shoes + straight, simplified trouser legs. No exposed hinges or anatomical joints.
+ const stride=pose===1?1:pose===3?-1:0,down=sitting?-.28:0;
+ const ell=(...args)=>m.ellipsoid(...args);
+ const trousers=['#55545e','#546067','#555d67','#605965','#666053','#555560'][color%6];
+ // Clean shoes, two legs, and softly rounded trousers.
  for(const side of [-1,1]){
-  const x=side*.151, dz=walking?step*side*.16:0;
-  const pants=['#55505a','#4c5b63','#51565f','#5c5666','#63584e','#55515b'][color%6];
-  if(sitting){
-   ell(x,.62,.20,.126,.17,.25,pants,12,9);
-   ell(x,.31,.43,.11,.24,.13,pants,12,8);
-   ell(x,.13,.52,.138,.105,.19,'#776456',12,8);
-  }else{
-   ell(x,.47,.014+dz*.63,.128,.365,.139,pants,13,10);
-   ell(x,.116,.115+dz,.151,.104,.214,'#655751',13,8);
-  }
+  const xx=side*.152,zz=walking?stride*side*.15:0;
+  if(sitting){ell(xx,.59,.19,.115,.19,.20,trousers,14,10);ell(xx,.31,.39,.108,.205,.11,trousers,14,9);ell(xx,.13,.48,.14,.08,.18,'#6a605a',13,8)}
+  else{ell(xx,.45,zz*.55,.121,.34,.126,trousers,15,11);ell(xx,.115,.07+zz,.145,.08,.18,'#6a605a',14,9)}
  }
- // Soft-knit oversized upper body and two simple sleeves.
- const bodyY=1.17+drop;
- ell(0,bodyY,0,.353,.437,.262,sweater,16,12);
- ell(0,bodyY-.31,.0,.337,.135,.256,sweater,13,8);
- const pale=['#f5e7d9','#e3e9dd','#e9e8e5','#f4e4ed','#f5ebdc','#ecded3'][color%6];
- // High collar – an intentional sweater detail rather than a realistic open jacket.
- // Collar deliberately omitted to avoid layered geometry artifacts on low-power devices.
+ const bodyY=1.14+down;
+ ell(0,bodyY,0,.339,.405,.244,sweater,22,15); // single smooth sweater
  for(const side of [-1,1]){
-  let sh=side*.425,armZ=walking?step*side*.13:0;
-  ell(sh,bodyY-.02,armZ,.105,.325,.14,sweater,14,10);
-  ell(sh,bodyY-.295,armZ,.100,.050,.135,pale,11,7);
-  ell(sh,bodyY-.359,armZ+.015,.083,.078,.087,skin,11,7);
+  const xx=side*.351,armZ=walking?stride*side*.095:0;
+  ell(xx,bodyY-.065,armZ,.109,.274,.126,sweater,18,13);
+  ell(xx,bodyY-.316,armZ+.01,.076,.067,.079,skin,12,9);
  }
- // Neck and round 'storybook' face. No protruding nose, ears, eyebrows or cheek blobs.
- const hy=1.86+drop;
- ell(0,hy-.29,0,.13,.15,.135,skin,12,8);
- // Hair behind the head, before/after is irrelevant with depth testing.
+ // Face is unobstructed: hair stays as a neat cap on top and entirely behind cheeks.
+ const hy=1.83+down;
  if(female){
-  // Smooth bob, continuous rear silhouette. No strands in front of the cheeks.
-  ell(0,hy-.09,-.128,.297,.395,.175,hair,18,13);
-  ell(0,hy-.34,-.145,.285,.12,.152,hair,16,9);
+  ell(0,hy-.085,-.110,.264,.361,.145,hair,22,15); // short smooth bob, at BACK
+  ell(0,hy-.286,-.13,.253,.118,.124,hair,20,11);
  }else{
-  ell(0,hy+.065,-.114,.29,.225,.174,hair,16,10);
+  ell(0,hy+.072,-.110,.255,.188,.143,hair,20,12);
  }
- ell(0,hy,0,.270,.308,.256,skin,20,15);
- // Single rounded hair cap above the forehead; high enough to keep the eyes uncovered.
- ell(0,hy+.229,-.047,female?.292:.287,.160,.259,hair,20,13);
- // The small fringe is above the eyes and follows the head contour.
- if(female){
-  ell(-.094,hy+.185,.154,.115,.042,.077,hair,13,8);
-  ell(.115,hy+.194,.135,.092,.035,.083,hair,13,8);
- }else{
-  ell(-.064,hy+.188,.137,.128,.045,.072,hair,13,8);
- }
- // Two tiny expressive eyes. From a distance this reads as a gentle illustrated face.
- const eye='#383437';
- for(const side of [-1,1]){
-  ell(side*.098,hy+.017,.252,.022,.029,.013,eye,10,7);
-  ell(side*.104,hy+.029,.262,.006,.008,.006,'#fff8ef',7,5);
- }
- // A barely visible smile, instead of an anatomically protruding mouth.
- m.box(0,hy-.126,.251,.059,.011,.014,'#a87874');
- // Simple sweater badge, not body embellishment.
- ell(-.20,bodyY+.04,.223,.022,.026,.018,pale,9,6);
+ ell(0,hy,0,.246,.288,.239,skin,24,17); // uninterrupted rounded face
+ ell(0,hy+.223,-.118,.249,.135,.163,hair,24,14); // smooth cap behind the forehead, no jagged bangs
+ // Delicate dot eyes and neutral expression, flush with face (no 3D protrusions).
+ for(const side of [-1,1])ell(side*.092,hy+.009,.236,.014,.019,.007,'#443b3c',12,8);
+ m.box(0,hy-.110,.241,.046,.008,.008,'#bb8c87');
  return {...createBuffer(m),original:m};
 }
 const avatars={male:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'male'))),female:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'female')))};
