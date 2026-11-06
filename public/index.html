@@ -8,10 +8,12 @@
       <div class="roomtop"><span class="live"><span class="live-dot"></span> LIVE ROOM <b id="roomCode">NIGHT</b></span><span class="count"><span id="count">1</span> / 20 함께</span><button id="copy" title="모임 초대 주소 복사">초대 링크 <span>↗</span></button></div>
     </div>
     <div class="chapter"><div class="eyebrow" id="zoneLabel">THE WRITING ROOM</div><h1 id="zoneTitle">밤의 문장들</h1><p id="zoneSub">서로의 이야기가 머무는 작은 방</p></div>
-    <div id="worldlabels"></div><div id="lightlayer" aria-hidden="true"></div><div id="fxlayer" aria-hidden="true"></div>
+    <div id="worldlabels"></div><div id="proximityHint" class="proximityHint" role="status" aria-live="polite" hidden>
+       <span class="proximityIcon">✦</span><span class="proximityCopy"><strong id="proximityTitle"></strong><small id="proximityText"></small></span>
+     </div><div id="lightlayer" aria-hidden="true"></div><div id="fxlayer" aria-hidden="true"></div>
     <div class="hud-bottom">
       <div class="controls"><div class="control-title">HOW TO MOVE</div><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 <span class="dotsep">·</span> 마우스 드래그 둘러보기 <span class="dotsep">·</span> <kbd>V</kbd> 1인칭/3인칭</div><div><kbd>E</kbd> 공간별 상호작용 <span class="dotsep">·</span> <kbd>F</kbd> 모임방 의자에 앉기 <span class="dotsep">·</span> <kbd>Enter</kbd> 채팅</div></div>
-      <div class="worldactions"><button id="camToggle" title="1인칭 또는 3인칭 전환">◉ <span>시점</span></button><button id="soundToggle" title="효과음 끄고 켜기">♫ <span>소리 켬</span></button></div>
+      <div class="worldactions"><button id="camToggle" title="1인칭 또는 3인칭 전환">◉ <span>시점</span></button><button id="soundToggle" title="배경음악과 효과음 켜기/끄기">♫ <span>소리 켬</span></button></div>
     </div>
     <div class="navigation"><button data-travel="main"><span>✎</span> 모임방</button><button data-travel="tea"><span>☕</span> 다과룸</button><button data-travel="mind"><span>✧</span> 여섯 얼굴의 방</button></div>
     <div class="mobileMove" id="joystick" aria-label="이동 조이스틱"><div class="joystick-hint">MOVE</div><div id="stick"></div></div>
@@ -97,7 +99,7 @@
       <div class="section-title">마음을 전하기</div><div class="reactions"><button data-react="heart">💗<small>마음</small></button><button data-react="clap">👏<small>박수</small></button><button data-react="spark">✨<small>반짝</small></button><button data-react="wave">👋<small>인사</small></button><button data-react="tea">☕<small>차 한 잔</small></button></div>
       <div class="voicepanel"><h3>🎙 함께 낭독하기</h3><p>음성을 켜면 같은 방에 있는 사람들과 실시간으로 말할 수 있어요. 글을 읽는 분을 조용히 들어 주세요.</p><button id="micToggle" class="button secondary">마이크 연결하기</button><div class="micnote" id="micState">HTTPS 또는 localhost에서 사용 가능 · 참여자의 동의 필요</div></div>
     </section>
-    <section class="tabpane chatpane" id="chatPane"><div class="panelhead"><div class="eyebrow">03 / CONVERSATION</div><h2>곁에 있는 사람에게</h2><p>서로를 평가하지 않고 이야기를 건네요.</p></div><div id="messages"></div><form id="chatForm"><input id="chatInput" autocomplete="off" maxlength="200" placeholder="따뜻한 한마디..." aria-label="채팅 입력"><button aria-label="채팅 전송">↗</button></form><div class="privacy">공개 모임이므로 연락처·민감한 개인정보는 공유하지 마세요.</div></section>
+    <section class="tabpane chatpane" id="chatPane"><div class="panelhead"><div class="eyebrow">03 / CONVERSATION</div><h2>곁에 있는 사람에게</h2><p>서로를 평가하지 않고 이야기를 건네요.</p><div class="chatHistoryBar"><span>이 기기의 모임방별 최근 대화 100개 자동 저장</span><button type="button" id="clearChatLocal" aria-label="이 기기의 현재 모임방 대화 기록 지우기">기록 지우기</button></div></div><div id="messages" aria-live="polite"></div><form id="chatForm"><input id="chatInput" autocomplete="off" maxlength="200" placeholder="따뜻한 한마디..." aria-label="채팅 입력"><button aria-label="채팅 전송">↗</button></form><div class="privacy">나갔다 와도 같은 기기에서 채팅이 복원됩니다. 다른 기기는 서버가 켜진 동안의 최근 대화만 볼 수 있어요. 연락처·민감한 개인정보는 공유하지 마세요.</div></section>
     <div class="sidebarFoot">✦ 밤이 깊을수록, 이야기는 더 선명해집니다.</div>
   </aside>
 </div>

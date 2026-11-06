@@ -8,7 +8,9 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
-const rooms = new Map(); // all in-memory; no persistent personal writing storage
+const CHAT_HISTORY_LIMIT = 100;
+const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
+const rooms = new Map(); // chat history in memory; local browsers separately save their own records
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.json':'application/json; charset=utf-8'};
 const server = http.createServer((req,res)=>{
   const target = new URL(req.url,'http://localhost');
@@ -25,7 +27,13 @@ const server = http.createServer((req,res)=>{
 function encode(payload){const data=Buffer.from(JSON.stringify(payload));const h=data.length<126?2:data.length<65536?4:10;const b=Buffer.alloc(h+data.length);b[0]=0x81;if(h===2){b[1]=data.length;}else if(h===4){b[1]=126;b.writeUInt16BE(data.length,2)}else{b[1]=127;b.writeBigUInt64BE(BigInt(data.length),2)}data.copy(b,h);return b;}
 function send(c,m){if(!c||c.socket.destroyed)return;try{c.socket.write(encode(m));}catch(e){}}
 function broadcast(room,m,except){if(!room)return;for(const c of room.clients.values())if(c!==except)send(c,m)}
-function cleanRoom(room){if(room?.clients.size===0)rooms.delete(room.code)}
+function cleanRoom(room){
+  if(!room || room.clients.size!==0)return;
+  room.emptyAt=Date.now();
+  // Keep only recent chat in memory when everyone leaves. On Render's free instance
+  // it is lost on restart; browsers save their own copy in localStorage.
+  if(!room.history?.length)rooms.delete(room.code);
+}
 function peers(room){return [...room.clients.values()].map(c=>({id:c.id,name:c.name,color:c.color,gender:c.gender,x:c.x,z:c.z,rot:c.rot,action:c.action}));}
 function leave(c){
   if(!c.room)return;const room=c.room;room.clients.delete(c.id);
@@ -44,10 +52,11 @@ function rate(c,key,ms){const now=Date.now();if(now-(c.last[key]||0)<ms)return f
 function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return;
   if(msg.t==='join'){
     if(c.room)return;const code=safeStr(msg.code,18).toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
-    let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null};rooms.set(code,room)}
+    let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],emptyAt:0};rooms.set(code,room)}
+    room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,limit:LIMIT});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,limit:LIMIT});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -60,7 +69,15 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       broadcast(room,{t:'move',id:c.id,x:c.x,z:c.z,rot:c.rot,action:c.action},c);break;
     }
     case 'chat':{
-      if(!rate(c,'chat',850))return;const text=safeStr(msg.text,200);if(text)broadcast(room,{t:'chat',id:c.id,name:c.name,text,time:Date.now()});break;
+      if(!rate(c,'chat',850))return;
+      const text=safeStr(msg.text,200);
+      if(text){
+        const entry={messageId:crypto.randomUUID(),id:c.id,name:c.name,text,time:Date.now()};
+        room.history.push(entry);
+        if(room.history.length>CHAT_HISTORY_LIMIT)room.history.splice(0,room.history.length-CHAT_HISTORY_LIMIT);
+        broadcast(room,{t:'chat',...entry});
+      }
+      break;
     }
     case 'react':{
       if(!rate(c,'react',650))return;
@@ -121,6 +138,12 @@ server.on('upgrade',(req,socket)=>{
   });
   socket.on('error',()=>{});socket.on('close',()=>leave(c));
 });
-const cleanup=setInterval(()=>{for(const r of rooms.values())for(const c of r.clients.values())if(Date.now()-c.seen>120000)c.socket.destroy()},30000);cleanup.unref();
+const cleanup=setInterval(()=>{
+  const now=Date.now();
+  for(const r of rooms.values()){
+    for(const c of r.clients.values())if(now-c.seen>120000)c.socket.destroy();
+    if(r.clients.size===0 && r.emptyAt && now-r.emptyAt>EMPTY_ROOM_CHAT_TTL)rooms.delete(r.code);
+  }
+},30000);cleanup.unref();
 server.listen(PORT,HOST,()=>console.log(`아마추어 글쓰기 3D | http://localhost:${PORT}`));
 module.exports={server,rooms};

@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.2.0",
+  "version": "14.3.0",
   "private": true,
-  "description": "아마추어 글쓰기 v14 수정판: 미니멀 캐릭터, 자연스러운 머리, 치마, 빈백·해먹과 테이블 상호작용 분리",
+  "description": "아마추어 글쓰기 v14 수정판: 기기별 채팅 자동 저장 및 서버 최근 대화 복원",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

@@ -26,23 +26,75 @@ function playSound(kind='click'){
     const osc=audioContext.createOscillator(),gain=audioContext.createGain();osc.type=kind==='clap'?'triangle':'sine';osc.frequency.setValueAtTime(freq,now+delay);gain.gain.setValueAtTime(0.0001,now+delay);gain.gain.exponentialRampToValueAtTime(kind==='clap'?.055:.035,now+delay+.008);gain.gain.exponentialRampToValueAtTime(.0001,now+delay+len);osc.connect(gain);gain.connect(audioContext.destination);osc.start(now+delay);osc.stop(now+delay+len+.018);
   }}catch(e){}
 }
+// Quiet original ambient music made from Web Audio tones (no external audio files).
+// Browsers permit audio only after a user gesture; entry button unlocks AudioContext.
+let musicTimer=null,musicStep=0,musicMaster=null,musicNext=0;
+function ensureAudio(){
+ try{
+  if(!audioContext){audioContext=new (window.AudioContext||window.webkitAudioContext)()}
+  if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
+  return audioContext;
+ }catch(e){return null}
+}
+function musicNote(hz,when,duration=.9,volume=.018){
+ const ctx=audioContext;if(!ctx)return;
+ const gain=ctx.createGain(),osc=ctx.createOscillator(),second=ctx.createOscillator();
+ osc.type='sine';second.type='triangle';osc.frequency.setValueAtTime(hz,when);second.frequency.setValueAtTime(hz*.5,when);
+ gain.gain.setValueAtTime(.0001,when);gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),when+.16);
+ gain.gain.setTargetAtTime(.0001,when+duration*.59,Math.max(.06,duration*.20));
+ osc.connect(gain);second.connect(gain);gain.connect(musicMaster||ctx.destination);
+ osc.start(when);second.start(when);osc.stop(when+duration+.70);second.stop(when+duration+.70);
+}
+function scheduleAmbient(){
+ if(!state.connected||state.muted||!audioContext||audioContext.state!=='running')return;
+ // An original, slow four-chord ambience; very soft, sparse bell/pad tones.
+ const chords=[[174.61,220,261.63],[146.83,196,246.94],[130.81,174.61,220],[155.56,196,233.08]];
+ const now=audioContext.currentTime;
+ while(musicNext<now+1.7){
+  const chord=chords[musicStep%chords.length];
+  musicNote(chord[0],musicNext,3.1,.0095);
+  musicNote(chord[1],musicNext+.41,2.6,.0063);
+  musicNote(chord[2],musicNext+1.03,2.4,.0060);
+  musicStep++;musicNext+=3.7;
+ }
+}
+function startAmbient(){
+ if(!state.connected||state.muted)return;
+ const ctx=ensureAudio();if(!ctx)return;
+ if(!musicMaster){musicMaster=ctx.createGain();musicMaster.gain.value=.48;musicMaster.connect(ctx.destination)}
+ if(musicTimer!==null)return;
+ musicNext=ctx.currentTime+.06;scheduleAmbient();musicTimer=setInterval(scheduleAmbient,760);
+}
+function stopAmbient(){if(musicTimer!==null){clearInterval(musicTimer);musicTimer=null}if(musicMaster&&audioContext){
+ musicMaster.gain.cancelScheduledValues(audioContext.currentTime);musicMaster.gain.setTargetAtTime(0,audioContext.currentTime,.08);
+ musicMaster.disconnect();musicMaster=null
+}}
+function playFootstep(){
+ if(state.muted||!state.connected)return;const ctx=ensureAudio();if(!ctx||ctx.state!=='running')return;
+ const length=.085,samples=Math.ceil(ctx.sampleRate*length),buffer=ctx.createBuffer(1,samples,ctx.sampleRate),data=buffer.getChannelData(0);
+ for(let i=0;i<samples;i++){const t=i/samples;data[i]=(Math.random()*2-1)*Math.pow(1-t,2.6)}
+ const src=ctx.createBufferSource(),low=ctx.createBiquadFilter(),gain=ctx.createGain();
+ src.buffer=buffer;low.type='lowpass';low.frequency.value=450;gain.gain.value=.18;
+ src.connect(low);low.connect(gain);gain.connect(ctx.destination);src.start();src.stop(ctx.currentTime+length);
+}
 function send(o){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(o))}
 function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($('#inviteCode').value||'NIGHT').trim().toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
+  if(!state.muted)ensureAudio(); // entry click unlocks ambient playback on mobile browsers
   state.name=name;state.code=code;persist();$('#entryError').textContent='모임방에 연결하는 중입니다…';$('#enterBtn').disabled=true;
   try{socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws')}catch(e){joinFail('서버 주소를 확인해 주세요.');return}
   socket.onopen=()=>send({t:'join',name,code,color:state.color,gender:state.gender});
   socket.onmessage=ev=>{let p;try{p=JSON.parse(ev.data)}catch(e){return}message(p)};
   socket.onerror=()=>joinFail('연결에 문제가 있어요. 서버가 실행 중인지 확인해 주세요.');
-  socket.onclose=()=>{if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
+  socket.onclose=()=>{stopAmbient();if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
 }
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;actor.x=(p.people.find(x=>x.id===p.id)||{x:.2}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:7.6}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');if(p.reading)showReading(p.reading);break;
+  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:.2}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:7.6}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);if(p.reading)showReading(p.reading);break;
   case 'join':peers.set(p.person.id,{...p.person,rx:p.person.x,rz:p.person.z,rr:p.person.rot});renderPeople();addSystem(p.person.name+' 님이 모임방에 왔어요.');playSound('click');if(state.mic)offer(p.person.id);break;
   case 'leave':{let gone=peers.get(p.id);if(gone)addSystem(gone.name+' 님이 나갔어요.');peers.delete(p.id);const pc=rtc.get(p.id);if(pc){pc.close();rtc.delete(p.id)}document.getElementById('audio-'+p.id)?.remove();renderPeople();break;}
   case 'move':{const other=peers.get(p.id);if(other){other.moving=Math.hypot(other.x-p.x,other.z-p.z)>.02;other.lastMoved=performance.now();other.x=p.x;other.z=p.z;other.rot=p.rot;other.action=p.action;}break;}
-  case 'chat':{const isMe=p.id===state.me;addChat(p.name,p.text,isMe);bubble(p.id,p.text);break;}
+  case 'chat':{receiveChat(p);bubble(p.id,p.text);break;}
   case 'react':{const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
   case 'mood':{const mood={joy:'☀️ 기쁨',sad:'💧 슬픔',anger:'🔥 화',worry:'🌧️ 불안',peace:'🍃 평온',hope:'✨ 기대'}[p.kind];const other=peers.get(p.id);if(mood){toast(p.name+' 님이 오늘의 마음을 나눴어요 · '+mood);if(other)emote('spark',other.x,other.z);playSound('heart')}break;}
 
@@ -53,7 +105,74 @@ function message(p){
 }
 function renderPeople(){$('#count').textContent=peers.size;$('#peopleCount').textContent=peers.size;
  const list=[...peers.values()];$('#people').innerHTML=list.map(p=>`<div class="personrow"><div class="persondot" style="background:${coatColors[p.color]||coatColors[0]}"></div><span>${escapeHtml(p.name)}${p.id===state.me?' (나)':''}</span><small>${p.action==='lie'?'누워 있음':p.action==='sit'?'앉아 있음':p.z<-1?(p.x<0?'다과룸':'여섯 얼굴의 방'):'모임방'}</small></div>`).join('');}
-function addChat(name,text,mine=false){const elt=document.createElement('div');elt.className='msg'+(mine?' mine':'');const strong=document.createElement('strong');strong.textContent=name;const body=document.createElement('span');body.textContent=text;elt.append(strong,body);$('#messages').append(elt);if($('#messages').children.length>100)$('#messages').firstChild.remove();$('#messages').scrollTop=$('#messages').scrollHeight;}
+// V14 chat history: local-only durable copy, scoped by room code.
+// Server also sends its recent room messages; merge by server-generated ID.
+const CHAT_KEEP=100;
+let chatEntries=[],chatIds=new Set(),activeChatRoom='';
+function chatKey(code){return 'amateur-writing-room-chat-v1:'+String(code||'NIGHT').toUpperCase()}
+function chatClearKey(code){return chatKey(code)+':clearedAt'}
+function chatCutoff(code){try{return Number(localStorage.getItem(chatClearKey(code)))||0}catch(e){return 0}}
+function normalizeChat(raw,code){
+ if(!raw||typeof raw!=='object')return null;
+ const messageId=String(raw.messageId||'').slice(0,90);
+ const name=String(raw.name||'').slice(0,18);
+ const text=String(raw.text||'').slice(0,200);
+ const time=Number(raw.time);
+ if(!messageId||!name||!text||!Number.isFinite(time)||time<=chatCutoff(code))return null;
+ return {messageId,name,text,time,mine:raw.mine===true};
+}
+function saveChats(){
+ if(!activeChatRoom)return;
+ try{localStorage.setItem(chatKey(activeChatRoom),JSON.stringify(chatEntries))}catch(e){}
+}
+function paintChats(){
+ const el=$('#messages');el.textContent='';
+ const fragment=document.createDocumentFragment();
+ for(const m of chatEntries){
+  const box=document.createElement('div');box.className='msg'+(m.mine?' mine':'');
+  box.dataset.messageId=m.messageId;
+  const label=document.createElement('strong');label.textContent=m.name;
+  const body=document.createElement('span');body.textContent=m.text;
+  const clock=document.createElement('small');clock.className='chatTime';
+  try{clock.textContent=new Date(m.time).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}catch(e){}
+  box.append(label,body,clock);fragment.append(box);
+ }
+ el.append(fragment);el.scrollTop=el.scrollHeight;
+}
+function mergeChats(incoming,code=activeChatRoom){
+ if(!code||!Array.isArray(incoming))return;
+ const all=new Map(chatEntries.map(m=>[m.messageId,m]));
+ for(const raw of incoming){
+  const m=normalizeChat(raw,code);if(!m)continue;
+  const old=all.get(m.messageId);
+  // Local mine flag remains true even after a reconnect (client socket ID changes).
+  if(old?.mine)m.mine=true;
+  all.set(m.messageId,m);
+ }
+ chatEntries=[...all.values()].sort((a,b)=>a.time-b.time||a.messageId.localeCompare(b.messageId)).slice(-CHAT_KEEP);
+ chatIds=new Set(chatEntries.map(m=>m.messageId));
+ saveChats();paintChats();
+}
+function restoreChatRoom(code,serverHistory){
+ activeChatRoom=String(code||'NIGHT').toUpperCase();chatEntries=[];chatIds=new Set();
+ try{const raw=JSON.parse(localStorage.getItem(chatKey(activeChatRoom))||'[]');if(Array.isArray(raw)){chatEntries=raw.map(m=>normalizeChat(m,activeChatRoom)).filter(Boolean).slice(-CHAT_KEEP)}}catch(e){}
+ chatIds=new Set(chatEntries.map(m=>m.messageId));
+ mergeChats(serverHistory,activeChatRoom);
+}
+function receiveChat(p){
+ if(!activeChatRoom)return;
+ const m={messageId:p.messageId,name:p.name,text:p.text,time:p.time,mine:p.id===state.me};
+ mergeChats([m]);
+}
+function clearDeviceChat(){
+ if(!activeChatRoom)return;
+ try{localStorage.setItem(chatClearKey(activeChatRoom),String(Date.now()));localStorage.removeItem(chatKey(activeChatRoom))}catch(e){}
+ chatEntries=[];chatIds=new Set();paintChats();
+ toast('이 기기에서 이 방의 대화 기록을 지웠어요. 다른 참가자의 기록은 그대로예요.');
+}
+$('#clearChatLocal').onclick=()=>{
+ if(confirm('이 기기에서 이 모임방의 대화 기록을 지울까요? 다른 참가자의 기록은 삭제되지 않습니다.'))clearDeviceChat();
+};
 function addSystem(text){const el=document.createElement('div');el.className='msg system';el.textContent=text;$('#messages').append(el);$('#messages').scrollTop=$('#messages').scrollHeight;}
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
 const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬'};
@@ -260,7 +379,7 @@ $$('[data-travel]').forEach(b=>b.addEventListener('click',()=>routeTo(b.dataset.
 const mindLounge=[
  {id:'beanbag-a',x:2.35,z:-7.05,rot:.28,type:'beanbag',action:'sit',label:'빈백'},
  {id:'beanbag-b',x:6.10,z:-7.05,rot:-.32,type:'beanbag',action:'sit',label:'빈백'},
- {id:'hammock',x:7.28,z:-5.38,rot:Math.PI,type:'hammock',action:'lie',label:'해먹'}
+ {id:'hammock',x:7.28,z:-5.38,rot:0,type:'hammock',action:'lie',label:'해먹'}
 ];
 const mindTable={x:4.5,z:-5.47,w:1.9,h:1.9,label:'마음 테이블'};
 function offsetByRot(x,z,rot,forward=0,side=0){return {x:x+Math.sin(rot)*forward+Math.cos(rot)*side,z:z+Math.cos(rot)*forward-Math.sin(rot)*side}}
@@ -280,25 +399,73 @@ function standUp(){
  actor.x=dest.x;actor.z=dest.z;
  actor.action='stand';state.sitting=false;state.restSpot=null;route=[];sendMove();toast('자리에서 일어났어요.');return true;
 }
-function closestMindLounge(){
- let best=null,dist=1e9;
- for(const p of mindLounge){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}
- return dist<1.48?best:null;
+function nearestRectDistance(x,z,cx,cz,w,h){
+ return Math.hypot(Math.max(0,Math.abs(x-cx)-w/2),Math.max(0,Math.abs(z-cz)-h/2))
 }
+function closestMindLounge(){
+ let best=null,score=Infinity;
+ for(const spot of mindLounge){
+  const d=Math.hypot(actor.x-spot.x,actor.z-spot.z);
+  const radius=spot.type==='hammock'?.91:.68;
+  if(d>radius+.90)continue;
+  const s=Math.abs(d-radius);if(s<score){score=s;best=spot}
+ }
+ return best
+}
+// Table uses the entire perimeter of its circular top rather than a narrow trigger spot.
 function nearMindTable(){
  const d=Math.hypot(actor.x-mindTable.x,actor.z-mindTable.z);
- return d>=1.09&&d<=1.9;
+ return d>=.70&&d<=2.12
 }
-
-function useMindLounge(){
- if(state.sitting||actor.action==='lie'){standUp();return true}
- const spot=closestMindLounge();
- if(!spot)return false;
+const chairSeats=[...[-3.4,-1.5,.7,2.9].map(x=>({x,z:7.5,rot:Math.PI})),
+ ...[-3.4,-1.5,.7,2.9].map(x=>({x,z:2.5,rot:0})),
+ {x:-5.4,z:4.4,rot:Math.PI/2},{x:4.85,z:4.5,rot:-Math.PI/2}];
+function nearbyInteraction(){
+ if(!state.connected)return null;
+ if(state.sitting||actor.action==='sit'||actor.action==='lie'){
+  const kind=state.restSpot?.type;
+  return {type:'stand',label:kind==='hammock'?'해먹에서 일어나기':kind==='beanbag'?'빈백에서 일어나기':'의자에서 일어나기',detail:'상호작용으로 안전한 바닥에 내려와요.'}
+ }
+ if(state.room==='main'){
+  let seat=null,dist=Infinity;
+  for(const p of chairSeats){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;seat=p}}
+  return dist<1.21?{type:'chair',label:'의자에 앉기',detail:'상호작용을 누르면 자리에 앉습니다.'}:null
+ }
+ if(state.room==='tea'){
+  const d1=nearestRectDistance(actor.x,actor.z,-4.5,-5.1,3.85,1.66);
+  const d2=nearestRectDistance(actor.x,actor.z,-4.6,-9.15,7.8,1.35);
+  return Math.min(d1,d2)<.83?{type:'snacks',label:'차 · 과자 · 젤리 고르기',detail:'상호작용으로 다과 메뉴를 엽니다.'}:null
+ }
+ if(state.room==='mind'){
+  const lounge=closestMindLounge();
+  const table=nearMindTable();
+  // Proximity to the nearest furniture surface decides which *single* action is offered.
+  if(lounge&&table){
+   const ld=Math.abs(Math.hypot(actor.x-lounge.x,actor.z-lounge.z)-(lounge.type==='hammock'?.91:.68));
+   const td=Math.abs(Math.hypot(actor.x-mindTable.x,actor.z-mindTable.z)-1.02);
+   if(td+.06<ld)return {type:'mind',label:'내 마음 알아보기 · 몰라보기',detail:'중앙 테이블에서 마음 활동을 선택해요.'};
+  }
+  if(lounge)return {type:'lounge',spot:lounge,label:lounge.type==='hammock'?'해먹에 누워 하늘 보기':'빈백에 편하게 앉기',detail:'상호작용을 누르면 쉬는 자세로 바뀝니다.'};
+  if(table)return {type:'mind',label:'내 마음 알아보기 · 몰라보기',detail:'중앙 테이블에서 마음 활동을 선택해요.'};
+ }
+ return null
+}
+function useMindLounge(spot){
+ if(!spot)return;
  actor.x=spot.x;actor.z=spot.z;actor.rot=spot.rot;actor.action=spot.action;state.sitting=true;state.restSpot=spot;route=[];sendMove();
  emote('spark',actor.x,actor.z);playSound(spot.type==='hammock'?'wave':'click');
- toast(spot.type==='hammock'?'해먹에 기대어 누웠어요. 잠시 쉬어가요.':'빈백에 편하게 앉았어요. 잠시 숨을 고를까요?');
+ toast(spot.type==='hammock'?'해먹에 하늘을 보고 누워 쉬어요.':'빈백에 편하게 앉았어요.');
  lightPulse(actor.x,actor.z,'#cbb8ed',155);
- return true;
+}
+let lastHintKey='';
+function updateProximityHint(){
+ const hint=$('#proximityHint');if(!hint)return;
+ const action=nearbyInteraction();
+ const hidden=!!$('#entrance:not(.hidden)')||!!document.querySelector('.mindOverlay:not(.hidden)')||!!document.querySelector('.snackOverlay:not(.hidden)');
+ if(!action||hidden){hint.hidden=true;lastHintKey='';return}
+ const key=action.type+action.label;
+ if(lastHintKey!==key){$('#proximityTitle').textContent=action.label;$('#proximityText').textContent=action.detail;lastHintKey=key}
+ hint.hidden=false;
 }
 
 function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='mind'?'✧ 여섯 얼굴의 방에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
@@ -306,7 +473,7 @@ function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요'
  for(let i=0;i<8;i++){particles.push({x:actor.x+(Math.random()-.5)*.8,y:.6+Math.random(),z:actor.z+(Math.random()-.5)*.7,vx:(Math.random()-.5)*.45,vy:.6,vz:(Math.random()-.5)*.45,life:.65+Math.random()*.6,color:i%2?'#f9ecbe':'#cde2d0'})}lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='mind'?'#d1b4fa':'#ffd6ae',160);
 }
 function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind')hideMindModal();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','감정 여섯 빛을 따라 마음을 비춰 보는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
-function closestSeat(){const seats=[...[-3.4,-1.5,.7,2.9].map(x=>({x,z:7.5,rot:Math.PI})),...[-3.4,-1.5,.7,2.9].map(x=>({x,z:2.5,rot:0})),{x:-5.4,z:4.4,rot:Math.PI/2},{x:4.85,z:4.5,rot:-Math.PI/2}];let best=null,dist=1e9;for(const p of seats){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<3.3?best:null}
+function closestSeat(){let best=null,dist=1e9;for(const p of chairSeats){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<1.21?best:null}
 function sit(){if(state.sitting||actor.action==='lie'){standUp();return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;state.restSpot={...p,type:'chair'};route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
  const el=$('#snackMenu');el.classList.remove('hidden');el.setAttribute('aria-hidden','false');
@@ -353,30 +520,23 @@ $('#mindWrite').onclick=()=>{const r=mindRecord();if(!r)return;
 $('#mindShuffle').onclick=()=>{mindPromptIndex=(mindPromptIndex+1+Math.floor(Math.random()*(mindQuestions.length-1)))%mindQuestions.length;$('#mindPrompt').textContent=mindQuestions[mindPromptIndex];playSound('spark')};
 $('#mindUnknownWrite').onclick=()=>{state.topic='아직 이름 없는 마음';state.notes=[state.notes.trim(),mindQuestions[mindPromptIndex]].filter(Boolean).join('\n');persist();setStep(2);hideMindModal();openMobilePanel('write');setTab('write');toast('마음 질문이 나의 글감으로 옮겨졌어요.')};
 function interact(){
- if(state.room==='tea'){showSnackMenu();return}
- if(state.room==='mind'){
-   if(state.sitting||actor.action==='lie'){standUp();return}
-   const nearLounge=closestMindLounge();
-   const tableReady=nearMindTable();
-   // A lounge interaction always wins within its own reach, even if the table is also nearby.
-   if(nearLounge){useMindLounge();return}
-   if(tableReady){
-     showMindModal();
-     lightPulse(actor.x,actor.z,'#cbb8ed',155);
-     return;
-   }
-   toast('빈백/해먹 가까이 가면 쉬고, 중앙 테이블 가까이 가면 마음 활동을 열 수 있어요.');
-   return;
- }
- sit();setTab('write')
+ const choice=nearbyInteraction();
+ if(!choice){toast('가구 가까이 가면 가능한 상호작용이 나타나요.');return}
+ if(choice.type==='stand'){standUp();return}
+ if(choice.type==='chair'){sit();return}
+ if(choice.type==='snacks'){showSnackMenu();return}
+ if(choice.type==='lounge'){useMindLounge(choice.spot);return}
+ if(choice.type==='mind'){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155)}
 }
+
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){if(state.room==='mind')interact();else sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAmbient();else startAmbient()});
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
 $('#camToggle').onclick=toggleCam;
-$('#soundToggle').onclick=()=>{state.muted=!state.muted;$('#soundToggle span').textContent=state.muted?'소리 끔':'소리 켬';if(!state.muted)playSound('click')};
+$('#soundToggle').onclick=()=>{state.muted=!state.muted;$('#soundToggle span').textContent=state.muted?'소리 끔':'소리 켬';if(state.muted)stopAmbient();else{playSound('click');startAmbient()}};
 $('#copy').onclick=async()=>{const url=location.origin+'/?room='+encodeURIComponent(state.code);try{await navigator.clipboard.writeText(url);toast('초대 링크를 복사했어요.')}catch(e){prompt('아래 링크를 복사해 주세요.',url)}playSound('spark')};
 canvas.addEventListener('pointerdown',e=>{pointer={down:true,id:e.pointerId,x:e.clientX,y:e.clientY,travel:0};canvas.setPointerCapture(e.pointerId)});
 canvas.addEventListener('pointermove',e=>{if(!pointer.down||pointer.id!==e.pointerId)return;const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;pointer.x=e.clientX;pointer.y=e.clientY;pointer.travel+=Math.abs(dx)+Math.abs(dy);if(pointer.travel>2){cam.yaw-=dx*.006;cam.pitch=clamp(cam.pitch+dy*.004,cam.first?-.85:.04,cam.first?.85:1.17)}});
@@ -432,7 +592,8 @@ function screenLabels(){if(!state.connected)return;const labels=[];for(const doo
 let lastFrame=0,lastStepAt=0;
 function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame=now;
  const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight),dpr=Math.min(matchMedia('(max-width:700px)').matches?1.25:1.5,devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);if(gl)gl.viewport(0,0,canvas.width,canvas.height)}
- if(state.connected){const moving=move(dt);actor.moving=moving;if(moving&&now-lastStepAt>520){playSound('step');lastStepAt=now}if(moving&&now-lastNet>85){sendMove();lastNet=now}if(!moving&&now-lastNet>950){sendMove();lastNet=now}updateZone();}
+ if(state.connected){const moving=move(dt);actor.moving=moving;if(moving&&now-lastStepAt>405){playFootstep();lastStepAt=now}if(moving&&now-lastNet>85){sendMove();lastNet=now}if(!moving&&now-lastNet>950){sendMove();lastNet=now}updateZone();}
+ updateProximityHint();
  cameraUpdate(dt);
  if(gl){if(burstLight&&now<burstLight.end){const color=burstLight.kind==='heart'?[1,.38,.55]:burstLight.kind==='jelly'?[.93,.54,.94]:burstLight.kind==='tea'?[.68,1,.60]:[1,.84,.54];gl.uniform3f(uFxPos,burstLight.x,burstLight.y,burstLight.z);gl.uniform3fv(uFxColor,new Float32Array(color));gl.uniform1f(uFxPower,Math.max(0,(burstLight.end-now)/1000)*2.1);}else{gl.uniform1f(uFxPower,0);}gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
   if(p.id!==state.me){p.rx+=(p.x-p.rx)*Math.min(1,dt*11);p.rz+=(p.z-p.rz)*Math.min(1,dt*11);p.rr+=(p.rot-p.rr)*Math.min(1,dt*10)}

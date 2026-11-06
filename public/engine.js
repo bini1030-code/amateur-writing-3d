@@ -254,6 +254,39 @@ function makeAvatar(color,pose=0,gender='male'){
  const wool=coatColors[color]||coatColors[0],darkWool=avatarShade(wool,.88);
  const skin=skinTones[color]||skinTones[0],hair=hairTones[color]||hairTones[0],pants=male?(pantsColors[color]||pantsColors[0]):'#f1cdb8';
  const ell=(...args)=>m.ellipsoid(...args);
+ if(lying){
+   // True supine pose: body faces upward (+Y), head toward +Z, feet toward -Z.
+   // The elbows bend outward and the hands support the back of the head.
+   const pantsColor=male?(pantsColors[color]||pantsColors[0]):'#ead5c7';
+   ell(0,.36,0,.238,.115,.48,wool,30,20); // back and knit body
+   ell(0,.43,.27,.21,.10,.23,wool,28,18); // shoulders / upper chest
+   ell(0,.40,-.33,.198,.105,.18,pantsColor,26,18); // hips
+   for(const side of [-1,1]){
+     const legX=side*.105;
+     ell(legX,.35,-.62,.082,.087,.29,pantsColor,24,16);
+     ell(legX,.33,-.92,.081,.052,.15,'#eee7d9',18,12);
+     // The arms go out, bend up, and finally go behind the head.
+     m.limb([side*.205,.47,.29],[side*.38,.48,.55],.070,wool,16);
+     m.limb([side*.38,.48,.55],[side*.18,.48,.83],.052,skin,14);
+     ell(side*.18,.48,.83,.061,.041,.075,skin,16,10);
+   }
+   if(!male){
+     // Laid-flat skirt fabric across hips and thighs.
+     ell(0,.41,-.32,.272,.085,.30,'#eee1cd',26,18);
+   }
+   // Head and hair sit *above* the fabric; facial features point at the sky.
+   ell(0,.44,.81,.183,.105,.208,hair,28,20); // back of hair as cushion
+   ell(0,.54,.81,.182,.137,.195,skin,30,20);
+   // Bob/short hair wraps along the head's sides rather than covering the face.
+   for(const side of [-1,1])ell(side*.161,.535,.80,.048,.118,male?.141:.200,hair,20,14);
+   ell(0,.555,.984,.150,.084,.052,hair,24,16); // forehead fringe
+   for(const side of [-1,1]){
+     ell(side*.076,.675,.86,.017,.010,.021,'#3c3230',12,8); // upturned eyes
+     ell(side*.076,.671,.93,.038,.009,.010,'#725451',12,8);
+   }
+   ell(0,.674,.748,.034,.009,.010,'#ac7871',12,8); // calm smile
+   return {...createBuffer(m),original:m};
+ }
  for(const side of [-1,1]){
   const x=side*.112,step=walking?side*stride*.10:0;
   if(lying){
