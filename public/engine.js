@@ -145,6 +145,12 @@ for(const z of [-3.2,-5.6,-7.8]){B(8.75,1.9,z,.10,2.6,1.32,'#554768');B(8.67,2.2
 // A slender entry console and potted greenery, no toilet furniture or sink.
 B(1.0,.78,-3.75,.53,1.24,1.8,'#67556c');B(1.0,1.47,-3.75,.81,.10,2.05,'#9c8397');
 for(const z of [-7.6,-3.0]){C(.72,.35,z,.28,.55,'#756070');for(let i=0;i<5;i++)S(.72+Math.cos(i*1.25)*.22,.87+(i%2)*.18,z+Math.sin(i*1.25)*.23,.20,'#69877b',8,6)}
+// Soft lounge props: two beanbags and one hammock for sitting or lying down.
+function beanbag(x,z,color){C(x,.34,z,.54,.38,color,18);C(x,.47,z,.42,.22,avatarShade(color,1.12),18);C(x,.18,z,.30,.12,avatarShade(color,.82),16)}
+beanbag(2.35,-7.05,'#a594c2');beanbag(6.10,-7.05,'#92a8a1');
+B(7.78,1.12,-5.95,.08,1.95,.08,'#90756b');B(6.78,1.12,-4.80,.08,1.95,.08,'#90756b');
+B(7.28,2.03,-5.38,1.48,.05,.05,'#a88d83',-.82);
+for(let i=0;i<6;i++){const t=i/5,x=7.72-(t*.92),z=-5.82+(t*.87),y=1.18+Math.sin(t*Math.PI)*.16;C(x,y,z,.14,.055,'#c9b3d0',10)}
 
 // V3 bespoke interior details: in-world art, book spines, warm fixtures, layered textiles.
 function picture(x,y,z,w,h,frame,inside){B(x,y,z,w+.13,h+.13,.065,frame);B(x,y,z+.039,w,h,.018,inside)}
@@ -203,37 +209,63 @@ function smoothLoft(mesh,rings,hex,segments=20){
  }
 }
 function singleHairShell(mesh,hy,gender,hex){
- const male=gender==='male',base=rgb(hex),segments=24,levels=10;
- // Hairline varies smoothly from forehead to temples to back, so the cap is continuous.
- // In model-local coords: +Z faces the viewer.
- function edge(u){
-  const front=Math.max(0,Math.sin(u)),back=Math.max(0,-Math.sin(u)),side=Math.abs(Math.cos(u));
-  if(male){const part=Math.exp(-Math.pow((u-1.07)/.24,2));return 1.56-.43*front+.12*back+.08*Math.sin(2*u)-.12*part;}
-  const part=Math.exp(-Math.pow((u-1.09)/.28,2));return 2.13-.94*front+.31*back+.11*side+.08*Math.sin(2*u+.4)-.11*part;
+ const male=gender==='male',base=rgb(hex);
+ const col=v=>tint(base,v);
+ if(male){
+  const seg=22;
+  const rings=[
+   {y:hy+.15,rx:.145,rz:.110,v:1.00},
+   {y:hy+.08,rx:.178,rz:.142,v:.97},
+   {y:hy-.005,rx:.186,rz:.156,v:.94},
+   {y:hy-.07,rx:.168,rz:.142,v:.92}
+  ];
+  for(let j=0;j<rings.length-1;j++)for(let i=0;i<seg;i++){
+   const a=i*2*Math.PI/seg,b=(i+1)*2*Math.PI/seg,r0=rings[j],r1=rings[j+1];
+   const p=(u,r,frontDrop=0)=>[Math.cos(u)*r.rx,r.y,Math.sin(u)*r.rz-(Math.max(0,Math.sin(u))*frontDrop)];
+   mesh.quadSmooth(p(a,r0,.020),p(b,r0,.020),p(b,r1,.028),p(a,r1,.028),col(r0.v),col(r0.v),col(r1.v),col(r1.v));
+  }
+  return;
  }
- function pt(u,t){const theta=t*edge(u),cx=Math.cos(u),sz=Math.sin(u);
-  const rx=male?.199:.214,ry=male?.230:.226,rz=male?.184:.202;
-  // subtle side part at the front without separate hair blobs
-  const part=(!male&&sz>0)? .008*Math.cos(u*2):0;
-  return [rx*Math.sin(theta)*cx + part,hy+ry*Math.cos(theta),rz*Math.sin(theta)*sz-.002];
+ const seg=26;
+ const rings=[
+  {y:hy+.15,rx:.142,rz:.110,v:1.01,front:.010},
+  {y:hy+.08,rx:.186,rz:.152,v:.98,front:.028},
+  {y:hy-.01,rx:.206,rz:.182,v:.95,front:.040},
+  {y:hy-.10,rx:.202,rz:.192,v:.92,front:.030},
+  {y:hy-.19,rx:.174,rz:.176,v:.90,front:.008}
+ ];
+ const drop=u=>{
+  const back=Math.max(0,-Math.sin(u));
+  const side=Math.pow(Math.abs(Math.cos(u)),1.45);
+  const front=Math.max(0,Math.sin(u));
+  return .012 + back*.012 + side*.020 - front*.006;
+ };
+ for(let j=0;j<rings.length-1;j++)for(let i=0;i<seg;i++){
+  const a=i*2*Math.PI/seg,b=(i+1)*2*Math.PI/seg,r0=rings[j],r1=rings[j+1];
+  const p=(u,r)=>{
+    const sideCut=.012*Math.pow(Math.abs(Math.cos(u)),1.7);
+    const x=Math.cos(u)*(r.rx-sideCut);
+    const z=Math.sin(u)*r.rz - Math.max(0,Math.sin(u))*r.front;
+    return [x,r.y-drop(u),z];
+  };
+  mesh.quadSmooth(p(a,r0),p(b,r0),p(b,r1),p(a,r1),col(r0.v),col(r0.v),col(r1.v),col(r1.v));
  }
- function col(u,t){const spec=.065*Math.cos(u-.72)+.025*Math.cos(u*3+.5)*Math.sin(Math.PI*t);
-  return tint(base,.91+spec+.04*(1-t));}
- for(let j=0;j<levels;j++)for(let i=0;i<segments;i++){
-  const a=i*2*Math.PI/segments,b=(i+1)*2*Math.PI/segments,t0=j/levels,t1=(j+1)/levels;
-  mesh.quadSmooth(pt(a,t0),pt(b,t0),pt(b,t1),pt(a,t1),col(a,t0),col(b,t0),col(b,t1),col(a,t1));
- }
+ for(const side of [-1,1])mesh.ellipsoid(side*.125,hy-.10,.115,.028,.060,.020,hex,12,8);
 }
 function makeAvatar(color,pose=0,gender='male'){
- const m=new Mesh(),male=gender==='male',walking=pose>=1&&pose<=3,sitting=pose===4;
- const stride=pose===1?1:pose===3?-1:0,down=sitting?-.28:0;
+ const m=new Mesh(),male=gender==='male',walking=pose>=1&&pose<=3,sitting=pose===4,lying=pose===5;
+ const stride=pose===1?1:pose===3?-1:0,down=sitting?-.28:lying?-.72:0;
  const wool=coatColors[color]||coatColors[0],darkWool=avatarShade(wool,.88);
  const skin=skinTones[color]||skinTones[0],hair=hairTones[color]||hairTones[0],pants=pantsColors[color]||pantsColors[0];
  const ell=(...args)=>m.ellipsoid(...args);
  // Natural slender feet and two separate straight/stepping trouser legs.
  for(const side of [-1,1]){
   const x=side*.112,step=walking?side*stride*.10:0;
-  if(sitting){
+  if(lying){
+   ell(x,.26,.46+side*.02,.085,.095,.21,pants,24,16);
+   ell(x,.24,.19+side*.03,.078,.11,.14,pants,22,14);
+   ell(x,.22,.63+side*.02,.090,.055,.13,'#e6ded4',14,8);
+  }else if(sitting){
    ell(x,.47,.24,.105,.16,.20,pants,26,18);
    ell(x,.24,.43,.09,.19,.11,pants,26,18);
    ell(x,.105,.51,.112,.075,.168,'#e6ded4',14,8);
@@ -248,40 +280,57 @@ function makeAvatar(color,pose=0,gender='male'){
   }
  }
  // Clothes are slightly tapered, not box-shaped and not balloon-round.
- smoothLoft(m,[
-  {x:0,y:.73+down,z:0,rx:.213,rz:.146},
-  {x:0,y:.82+down,z:0,rx:.217,rz:.145},
-  {x:0,y:1.06+down,z:0,rx:.222,rz:.142},
-  {x:0,y:1.30+down,z:0,rx:.239,rz:.146},
-  {x:0,y:1.41+down,z:0,rx:.160,rz:.118},
-  {x:0,y:1.44+down,z:0,rx:.085,rz:.082}
- ],wool,22);
- // Subtle neck and hem; no busy fake knit/polygon stripes.
- ell(0,.755+down,0,.211,.034,.146,darkWool,14,8);
- ell(0,1.427+down,.006,.108,.042,.082,darkWool,14,8);
+ if(lying){
+  smoothLoft(m,[
+   {x:0,y:.42,z:.00,rx:.18,rz:.11},
+   {x:0,y:.40,z:.18,rx:.20,rz:.13},
+   {x:0,y:.39,z:.38,rx:.21,rz:.13},
+   {x:0,y:.37,z:.58,rx:.18,rz:.11},
+   {x:0,y:.36,z:.69,rx:.11,rz:.09}
+  ],wool,20);
+  ell(0,.42,.02,.17,.03,.11,darkWool,14,8);
+  ell(0,.36,.66,.09,.03,.07,darkWool,14,8);
+ }else{
+  smoothLoft(m,[
+   {x:0,y:.73+down,z:0,rx:.213,rz:.146},
+   {x:0,y:.82+down,z:0,rx:.217,rz:.145},
+   {x:0,y:1.06+down,z:0,rx:.222,rz:.142},
+   {x:0,y:1.30+down,z:0,rx:.239,rz:.146},
+   {x:0,y:1.41+down,z:0,rx:.160,rz:.118},
+   {x:0,y:1.44+down,z:0,rx:.085,rz:.082}
+  ],wool,22);
+  // Subtle neck and hem; no busy fake knit/polygon stripes.
+  ell(0,.755+down,0,.211,.034,.146,darkWool,14,8);
+  ell(0,1.427+down,.006,.108,.042,.082,darkWool,14,8);
+ }
  // Shoulder-to-wrist arm silhouette with smooth rounding.
  for(const side of [-1,1]){
   const x=side*.29,armz=walking?stride*side*.065:0;
-  ell(x,1.105+down,armz,.082,.305,.092,wool,16,9);
-  ell(x, .87+down,armz+.008,.092,.044,.096,darkWool,10,6);
-  ell(x,.795+down,armz+.012,.068,.073,.068,skin,10,6);
+  if(lying){
+   ell(x*.72,.43,.28+side*.08,.064,.18,.070,wool,14,8);
+   ell(x*.72,.38,.10+side*.08,.054,.060,.060,skin,10,6);
+  }else{
+   ell(x,1.105+down,armz,.082,.305,.092,wool,16,9);
+   ell(x, .87+down,armz+.008,.092,.044,.096,darkWool,10,6);
+   ell(x,.795+down,armz+.012,.068,.073,.068,skin,10,6);
+  }
  }
  // A human-sized head: smaller and less round than v12 (head width ~0.36, shoulders ~0.68).
- const hy=1.686+down;
- ell(0,hy,0,.185,.213,.169,skin,24,14);
- for(const side of [-1,1])ell(side*.182,hy-.024,-.006,.033,.055,.036,skin,10,6);
+ const hy=(lying?.47:1.686)+down;
+ ell(0,hy,lying?.83:0,.185,.213,.169,skin,24,14);
+ for(const side of [-1,1])ell(side*.182,hy-.024,lying?.824:-.006,.033,.055,.036,skin,10,6);
  // Head-hugging single-surface haircut; two gender variations without glued-on tufts.
  singleHairShell(m,hy,gender,hair);
  // Friendly but restrained face markings.
  const ink='#3c3230';
  for(const side of [-1,1]){
-  ell(side*.069,hy+.003,.168,.013,.018,.006,ink,8,5);
-  ell(side*.072,hy+.068,.159,.036,.007,.006,'#634944',8,5);
+  ell(side*.069,hy+.003,lying?.988:.168,.013,.018,.006,ink,8,5);
+  ell(side*.072,hy+.068,lying?.979:.159,.036,.007,.006,'#634944',8,5);
  }
- ell(0,hy-.087,.168,.031,.007,.006,'#a86d69',8,5);
+ ell(0,hy-.087,lying?.988:.168,.031,.007,.006,'#a86d69',8,5);
  return {...createBuffer(m),original:m};
 }
-const avatars={male:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'male'))),female:Array.from({length:6},(_,color)=>Array.from({length:5},(_,pose)=>makeAvatar(color,pose,'female')))};
+const avatars={male:Array.from({length:6},(_,color)=>Array.from({length:6},(_,pose)=>makeAvatar(color,pose,'male'))),female:Array.from({length:6},(_,color)=>Array.from({length:6},(_,pose)=>makeAvatar(color,pose,'female')))};
 const particleMeshes={};for(const c of ['#fbd7b0','#fad4d9','#f9ecbe','#cde2d0','#d0a076','#f5dbb7','#f4b0c9','#c9c1fa']){const p=new Mesh();p.sphere(0,0,0,.10,c,8,5);particleMeshes[c]=createBuffer(p)}
 
 // Perspective 3D CPU fallback, for browsers with GPU acceleration blocked. Same XYZ scene, lower FPS.

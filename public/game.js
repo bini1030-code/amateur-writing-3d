@@ -5,7 +5,7 @@ const escapeHtml=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const prompts=['어느 날 문득 나를 위로해 준 작은 말','지금 다시 만나고 싶은 한 사람','오늘 내가 지켜낸 작은 용기','말로는 꺼내지 못했던 마음 한 조각','내게 평안함을 주는 저녁의 풍경','지나온 계절에 전하고 싶은 편지','아무것도 특별하지 않았던 소중한 순간','내 삶에 남아 있는 누군가의 친절'];
 let saved={};try{saved=JSON.parse(localStorage.getItem('amateur-writing-live-v2')||'{}')}catch(e){}
-const state={name:saved.name||'',code:new URLSearchParams(location.search).get('room')||saved.code||'NIGHT',color:saved.color||0,gender:saved.gender==='female'?'female':'male',notes:saved.notes||'',topic:saved.topic||'',title:saved.title||'',story:saved.story||'',step:0,read:null,connected:false,me:null,mic:false,muted:false,room:'main',sitting:false,timer:20*60,running:false};
+const state={name:saved.name||'',code:new URLSearchParams(location.search).get('room')||saved.code||'NIGHT',color:saved.color||0,gender:saved.gender==='female'?'female':'male',notes:saved.notes||'',topic:saved.topic||'',title:saved.title||'',story:saved.story||'',step:0,read:null,connected:false,me:null,mic:false,muted:false,room:'main',sitting:false,restSpot:null,timer:20*60,running:false};
 function persist(){try{localStorage.setItem('amateur-writing-live-v2',JSON.stringify({name:state.name,code:state.code,color:state.color,gender:state.gender,notes:state.notes,topic:state.topic,title:state.title,story:state.story}))}catch(e){}}
 let burstLight=null;let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
 const actor={x:.2,z:7.6,rot:Math.PI,action:'stand',moving:false};
@@ -52,7 +52,7 @@ function message(p){
  }
 }
 function renderPeople(){$('#count').textContent=peers.size;$('#peopleCount').textContent=peers.size;
- const list=[...peers.values()];$('#people').innerHTML=list.map(p=>`<div class="personrow"><div class="persondot" style="background:${coatColors[p.color]||coatColors[0]}"></div><span>${escapeHtml(p.name)}${p.id===state.me?' (나)':''}</span><small>${p.action==='sit'?'앉아 있음':p.z<-1?(p.x<0?'다과룸':'여섯 얼굴의 방'):'모임방'}</small></div>`).join('');}
+ const list=[...peers.values()];$('#people').innerHTML=list.map(p=>`<div class="personrow"><div class="persondot" style="background:${coatColors[p.color]||coatColors[0]}"></div><span>${escapeHtml(p.name)}${p.id===state.me?' (나)':''}</span><small>${p.action==='lie'?'누워 있음':p.action==='sit'?'앉아 있음':p.z<-1?(p.x<0?'다과룸':'여섯 얼굴의 방'):'모임방'}</small></div>`).join('');}
 function addChat(name,text,mine=false){const elt=document.createElement('div');elt.className='msg'+(mine?' mine':'');const strong=document.createElement('strong');strong.textContent=name;const body=document.createElement('span');body.textContent=text;elt.append(strong,body);$('#messages').append(elt);if($('#messages').children.length>100)$('#messages').firstChild.remove();$('#messages').scrollTop=$('#messages').scrollHeight;}
 function addSystem(text){const el=document.createElement('div');el.className='msg system';el.textContent=text;$('#messages').append(el);$('#messages').scrollTop=$('#messages').scrollHeight;}
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
@@ -190,7 +190,9 @@ const solidRects=[
  // psychology room
  {x:4.5,z:-5.47,w:1.55,h:1.55}, // center journal stand
  {x:1.0,z:-3.75,w:.98,h:2.20},   // entry console
- {x:.72,z:-7.6,w:.76,h:.76},{x:.72,z:-3.0,w:.76,h:.76}
+ {x:.72,z:-7.6,w:.76,h:.76},{x:.72,z:-3.0,w:.76,h:.76},
+ {x:2.35,z:-7.05,w:1.00,h:.86},{x:6.10,z:-7.05,w:1.00,h:.86},
+ {x:7.28,z:-5.38,w:1.55,h:.95}
  ];
 function inRect(x,z,r,margin=.14){return x>r.x-r.w/2-margin&&x<r.x+r.w/2+margin&&z>r.z-r.h/2-margin&&z<r.z+r.h/2+margin}
 function traversable(x,z){
@@ -254,6 +256,34 @@ function routeTo(place){playSound('click');if(!state.connected)return;if(place==
  toast((place==='tea'?'다과룸':place==='mind'?'여섯 얼굴의 방':'모임방')+'으로 안내할게요. 통로를 따라 걸어가요.');
 }
 $$('[data-travel]').forEach(b=>b.addEventListener('click',()=>routeTo(b.dataset.travel)));
+const mindLounge=[
+ {id:'beanbag-a',x:2.35,z:-7.05,rot:.28,type:'beanbag',action:'sit',label:'빈백'},
+ {id:'beanbag-b',x:6.10,z:-7.05,rot:-.32,type:'beanbag',action:'sit',label:'빈백'},
+ {id:'hammock',x:7.28,z:-5.38,rot:-Math.PI/2,type:'hammock',action:'lie',label:'해먹'}
+];
+function offsetByRot(x,z,rot,forward=0,side=0){return {x:x+Math.sin(rot)*forward+Math.cos(rot)*side,z:z+Math.cos(rot)*forward-Math.sin(rot)*side}}
+function standUp(){
+ if(!(state.sitting||actor.action==='sit'||actor.action==='lie'))return false;
+ const base=state.restSpot||{x:actor.x,z:actor.z,rot:actor.rot,type:'chair'};
+ const tries=[];
+ if(base.type==='chair')tries.push(offsetByRot(base.x,base.z,base.rot,0,.82),offsetByRot(base.x,base.z,base.rot,0,-.82),offsetByRot(base.x,base.z,base.rot,-.78,0),offsetByRot(base.x,base.z,base.rot,.78,0));
+ else if(base.type==='beanbag')tries.push(offsetByRot(base.x,base.z,base.rot,.95,0),offsetByRot(base.x,base.z,base.rot,-.95,0),offsetByRot(base.x,base.z,base.rot,0,.85),offsetByRot(base.x,base.z,base.rot,0,-.85));
+ else tries.push(offsetByRot(base.x,base.z,base.rot,-1.02,0),offsetByRot(base.x,base.z,base.rot,1.02,0),offsetByRot(base.x,base.z,base.rot,0,.92),offsetByRot(base.x,base.z,base.rot,0,-.92));
+ let dest=tries.find(t=>traversable(t.x,t.z));
+ if(!dest){for(let r=0;r<10&&!dest;r++){const a=Math.PI*2*r/10,c={x:base.x+Math.cos(a)*.95,z:base.z+Math.sin(a)*.95};if(traversable(c.x,c.z))dest=c}}
+ if(dest){actor.x=dest.x;actor.z=dest.z}
+ actor.action='stand';state.sitting=false;state.restSpot=null;route=[];sendMove();toast('자리에서 일어났어요.');return true;
+}
+function closestMindLounge(){let best=null,dist=1e9;for(const p of mindLounge){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<2.35?best:null}
+function useMindLounge(){
+ if(state.sitting||actor.action==='lie'){standUp();return}
+ const spot=closestMindLounge();
+ if(!spot){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);return}
+ actor.x=spot.x;actor.z=spot.z;actor.rot=spot.rot;actor.action=spot.action;state.sitting=true;state.restSpot=spot;route=[];sendMove();
+ emote('spark',actor.x,actor.z);playSound(spot.type==='hammock'?'wave':'click');
+ toast(spot.type==='hammock'?'해먹에 기대어 누웠어요. 천천히 마음을 돌아보세요.':'빈백에 편하게 앉았어요. 숨을 고르고 마음을 살펴봐요.');
+ setTimeout(()=>{showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155)},120);
+}
 
 function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='mind'?'✧ 여섯 얼굴의 방에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
@@ -261,7 +291,7 @@ function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요'
 }
 function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind')hideMindModal();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','감정 여섯 빛을 따라 마음을 비춰 보는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){const seats=[...[-3.4,-1.5,.7,2.9].map(x=>({x,z:7.5,rot:Math.PI})),...[-3.4,-1.5,.7,2.9].map(x=>({x,z:2.5,rot:0})),{x:-5.4,z:4.4,rot:Math.PI/2},{x:4.85,z:4.5,rot:-Math.PI/2}];let best=null,dist=1e9;for(const p of seats){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<3.3?best:null}
-function sit(){if(state.sitting){state.sitting=false;actor.action='stand';sendMove();toast('자리에서 일어났어요.');return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
+function sit(){if(state.sitting||actor.action==='lie'){standUp();return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;state.restSpot={...p,type:'chair'};route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
  const el=$('#snackMenu');el.classList.remove('hidden');el.setAttribute('aria-hidden','false');
  playSound('click');}
@@ -306,10 +336,10 @@ $('#mindWrite').onclick=()=>{const r=mindRecord();if(!r)return;
 };
 $('#mindShuffle').onclick=()=>{mindPromptIndex=(mindPromptIndex+1+Math.floor(Math.random()*(mindQuestions.length-1)))%mindQuestions.length;$('#mindPrompt').textContent=mindQuestions[mindPromptIndex];playSound('spark')};
 $('#mindUnknownWrite').onclick=()=>{state.topic='아직 이름 없는 마음';state.notes=[state.notes.trim(),mindQuestions[mindPromptIndex]].filter(Boolean).join('\n');persist();setStep(2);hideMindModal();openMobilePanel('write');setTab('write');toast('마음 질문이 나의 글감으로 옮겨졌어요.')};
-function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='mind'){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);}else{sit();setTab('write')}}
+function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='mind'){useMindLounge()}else{sit();setTab('write')}}
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting){state.sitting=false;actor.action='stand'}}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
 $('#camToggle').onclick=toggleCam;
@@ -374,10 +404,10 @@ function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame
  if(gl){if(burstLight&&now<burstLight.end){const color=burstLight.kind==='heart'?[1,.38,.55]:burstLight.kind==='jelly'?[.93,.54,.94]:burstLight.kind==='tea'?[.68,1,.60]:[1,.84,.54];gl.uniform3f(uFxPos,burstLight.x,burstLight.y,burstLight.z);gl.uniform3fv(uFxColor,new Float32Array(color));gl.uniform1f(uFxPower,Math.max(0,(burstLight.end-now)/1000)*2.1);}else{gl.uniform1f(uFxPower,0);}gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
   if(p.id!==state.me){p.rx+=(p.x-p.rx)*Math.min(1,dt*11);p.rz+=(p.z-p.rz)*Math.min(1,dt*11);p.rr+=(p.rot-p.rr)*Math.min(1,dt*10)}
   const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz,rot=p.id===state.me?actor.rot:p.rr;
-  const isMe=p.id===state.me,isSitting=(isMe?actor.action:p.action)==='sit';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose],model=modelMat(x,0,z,rot);draw(m,mul(cam.matrix,model),model)}
+  const isMe=p.id===state.me,action=(isMe?actor.action:p.action),isSitting=action==='sit',isLying=action==='lie';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isLying?5:isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose],model=modelMat(x,0,z,rot);draw(m,mul(cam.matrix,model),model)}
   for(const part of particles){part.life-=dt;part.x+=part.vx*dt;part.y+=part.vy*dt;part.z+=part.vz*dt;part.vy-=.7*dt;if(part.life>0)draw(particleMeshes[part.color],mul(cam.matrix,modelMat(part.x,part.y,part.z,0)),modelMat(part.x,part.y,part.z,0))}particles=particles.filter(p=>p.life>0);}
  }
- if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>({self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action:p.id===state.me?actor.action:p.action,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(p.action==='sit'?4:0)}));drawSoftware(now,players,cam,particles)}
+ if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>{const action=p.id===state.me?actor.action:p.action;return {self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(action==='lie'?5:action==='sit'?4:0)}});drawSoftware(now,players,cam,particles)}
  renderLightGlows();
  if(now%120<30)screenLabels();requestAnimationFrame(frame)}
 // WebRTC mesh voice: opt-in microphone, P2P audio. HTTPS/local-only; restricted NAT may require TURN.
