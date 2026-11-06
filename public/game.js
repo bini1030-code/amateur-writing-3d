@@ -10,6 +10,13 @@ function persist(){try{localStorage.setItem('amateur-writing-live-v2',JSON.strin
 let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
 const actor={x:.2,z:7.6,rot:Math.PI,action:'stand',moving:false};
 const cam={yaw:0,pitch:.31,dist:4.7,followPos:null,first:false,eye:[0,0,0],center:[0,0,0],matrix:null};
+const worldLights=[
+ {x:-2.6,y:3.05,z:4.9,color:'#ffdca0',size:190,alpha:.32},{x:0,y:3.05,z:4.9,color:'#ffdca0',size:210,alpha:.34},{x:2.6,y:3.05,z:4.9,color:'#ffdca0',size:190,alpha:.32},
+ {x:-2.4,y:3.05,z:6.4,color:'#ffd7a2',size:180,alpha:.30},{x:0,y:3.05,z:6.4,color:'#ffd7a2',size:200,alpha:.32},{x:2.4,y:3.05,z:6.4,color:'#ffd7a2',size:180,alpha:.30},
+ {x:6.95,y:3.08,z:10.15,color:'#ffe0a7',size:200,alpha:.28},{x:-5.6,y:3.22,z:-0.9,color:'#f6deb2',size:145,alpha:.23},{x:5.6,y:3.22,z:-0.9,color:'#f6deb2',size:145,alpha:.23},
+ {x:-7.1,y:3.58,z:-6.9,color:'#ffe4ac',size:105,alpha:.17},{x:-5.2,y:3.58,z:-6.25,color:'#ffe4ac',size:105,alpha:.17},{x:-3.2,y:3.58,z:-7.1,color:'#ffe4ac',size:105,alpha:.17},
+ {x:1.9,y:2.38,z:-9.62,color:'#fff0cc',size:145,alpha:.18},{x:6.9,y:2.38,z:-9.62,color:'#fff0cc',size:145,alpha:.18}
+];
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2700)}
 function playSound(kind='click'){
   if(state.muted)return;
@@ -49,6 +56,7 @@ function addSystem(text){const el=document.createElement('div');el.className='ms
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
 const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬'};
 function emote(kind,x,z){const screen=screenAt([x,2.5,z]);if(screen){let p=document.createElement('div');p.className='floatEmoji';p.textContent=reactionEmoji[kind]||'✨';p.style.left=screen[0]+'px';p.style.top=screen[1]+'px';p.style.setProperty('--dx',(Math.random()*75-35)+'px');$('#fxlayer').append(p);setTimeout(()=>p.remove(),1950)}
+ const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df'};lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132);
  if(!$('#reading').classList.contains('hidden')){const card=$('.readCard');for(let j=0;j<4;j++){let e=document.createElement('span');e.className='readBurst';e.textContent=reactionEmoji[kind]||'✨';e.style.left=(20+Math.random()*60)+'%';e.style.top=(68+Math.random()*16)+'%';card.append(e);setTimeout(()=>e.remove(),1850)}}
  for(let i=0;i<13;i++){const colors=kind==='heart'?['#fad4d9','#fbd7b0']:kind==='tea'?['#cde2d0','#f9ecbe']:kind==='cookie'?['#d0a076','#f5dbb7']:kind==='jelly'?['#f4b0c9','#c9c1fa']:['#fbd7b0','#f9ecbe'];particles.push({x,y:1+Math.random()*1.1,z,vx:(Math.random()-.5)*1.7,vy:1.2+Math.random()*1.4,vz:(Math.random()-.5)*1.7,life:1.2+Math.random()*.6,color:colors[i%colors.length]})}}
 function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);playSound(kind)}
@@ -235,7 +243,7 @@ $$('[data-travel]').forEach(b=>b.addEventListener('click',()=>routeTo(b.dataset.
 
 function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='wc'?'✦ 화장실에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
- for(let i=0;i<8;i++){particles.push({x:actor.x+(Math.random()-.5)*.8,y:.6+Math.random(),z:actor.z+(Math.random()-.5)*.7,vx:(Math.random()-.5)*.45,vy:.6,vz:(Math.random()-.5)*.45,life:.65+Math.random()*.6,color:i%2?'#f9ecbe':'#cde2d0'})}
+ for(let i=0;i<8;i++){particles.push({x:actor.x+(Math.random()-.5)*.8,y:.6+Math.random(),z:actor.z+(Math.random()-.5)*.7,vx:(Math.random()-.5)*.45,vy:.6,vz:(Math.random()-.5)*.45,life:.65+Math.random()*.6,color:i%2?'#f9ecbe':'#cde2d0'})}lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='wc'?'#f2f4ff':'#ffd6ae',160);
 }
 function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],wc:['THE QUIET ROOM','잠깐의 쉼','손을 씻고 마음을 정리하는 화장실']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){const seats=[...[-3.4,-1.5,.7,2.9].map(x=>({x,z:7.5,rot:Math.PI})),...[-3.4,-1.5,.7,2.9].map(x=>({x,z:2.5,rot:0})),{x:-5.4,z:4.4,rot:Math.PI/2},{x:4.85,z:4.5,rot:-Math.PI/2}];let best=null,dist=1e9;for(const p of seats){let d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<3.3?best:null}
@@ -251,7 +259,7 @@ function eatSnack(kind){if(!state.connected||state.room!=='tea'){hideSnackMenu()
  react(kind);toast(labels[kind]+' · 서서 맛있게 즐겼어요!');}
 $('#snackMenuClose').onclick=hideSnackMenu;
 $('#snackMenu').addEventListener('click',e=>{if(e.target.id==='snackMenu')hideSnackMenu();const button=e.target.closest('[data-snack]');if(button)eatSnack(button.dataset.snack)});
-function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='wc'){emote('spark',actor.x,actor.z);playSound('tea');toast('손을 씻고 잠시 마음을 가다듬었어요.')}else{sit();setTab('write')}}
+function interact(){if(state.room==='tea')showSnackMenu();else if(state.room==='wc'){emote('spark',actor.x,actor.z);lightPulse(actor.x,actor.z,'#f4f7ff',150);playSound('tea');toast('손을 씻고 잠시 마음을 가다듬었어요.')}else{sit();setTab('write')}}
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting){state.sitting=false;actor.action='stand'}}else if(k==='v'){toggleCam()}else if(k==='f'){sit()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
@@ -306,6 +314,8 @@ function cameraUpdate(dt){
  cam.matrix=mul(persp(Math.PI/2.55,canvas.width/canvas.height,.07,95),lookAt(cam.eye,cam.center));
 }
 function screenAt(pos){if(!cam.matrix)return null;const [x,y,z]=pos,m=cam.matrix,w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w<.12)return null;const a=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,b=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;return [(a*.5+.5)*canvas.clientWidth,(.5-b*.5)*canvas.clientHeight,w]}
+function lightPulse(x,z,color='#ffe2a8',size=130){const pt=screenAt([x,1.8,z]);if(!pt)return;const el=document.createElement('div');el.className='lightPulse';el.style.left=pt[0]+'px';el.style.top=pt[1]+'px';el.style.setProperty('--pulse-color',color);el.style.setProperty('--pulse-size',size+'px');$('#fxlayer').append(el);setTimeout(()=>el.remove(),820)}
+function renderLightGlows(){const layer=$('#lightlayer');if(!layer||!cam.matrix)return;const out=[];for(const l of worldLights){const pt=screenAt([l.x,l.y,l.z]);if(!pt)continue;const [sx,sy,w]=pt;if(sx<-120||sx>canvas.clientWidth+120||sy<-120||sy>canvas.clientHeight+120)continue;const dist=Math.hypot(cam.eye[0]-l.x,cam.eye[1]-l.y,cam.eye[2]-l.z);const size=Math.max(58,l.size*Math.min(1.75,8/Math.max(3,dist)));const alpha=(l.alpha||.2)*Math.max(.18,Math.min(1,.98-dist/24));out.push(`<div class="sceneGlow" style="left:${sx}px;top:${sy}px;--size:${size}px;--glow:${l.color};--alpha:${alpha}"></div>`)}layer.innerHTML=out.join('')}
 function screenLabels(){if(!state.connected)return;const labels=[];for(const door of [{x:-5.6,z:-1.0,t:'☕ 다과룸'},{x:5.6,z:-1.0,t:'🚻 화장실'}]){
  if(Math.hypot(actor.x-door.x,actor.z-door.z)<8){const loc=screenAt([door.x,2.93,door.z]);if(loc&&loc[0]>20&&loc[0]<canvas.clientWidth-20&&loc[1]>90&&loc[1]<canvas.clientHeight-30)labels.push(`<div class="door-label" style="left:${loc[0]}px;top:${loc[1]}px">${door.t}</div>`)}}
  for(const p of peers.values()){if(p.id===state.me&&cam.first)continue;const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz;const pt=screenAt([x,2.25,z]);if(!pt||pt[0]<-30||pt[0]>canvas.clientWidth+30||pt[1]<60||pt[1]>canvas.clientHeight)continue;const txt=p.bubble&&p.bubbleEnd>Date.now()?p.bubble:(p.id===state.me?'나 · '+p.name:p.name);labels.push(`<div class="world-label ${p.id===state.me?'me':''}" style="left:${pt[0]}px;top:${pt[1]}px">${escapeHtml(txt)}</div>`)}$('#worldlabels').innerHTML=labels.join('')}
@@ -321,6 +331,7 @@ function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame
   for(const part of particles){part.life-=dt;part.x+=part.vx*dt;part.y+=part.vy*dt;part.z+=part.vz*dt;part.vy-=.7*dt;if(part.life>0)draw(particleMeshes[part.color],mul(cam.matrix,modelMat(part.x,part.y,part.z,0)))}particles=particles.filter(p=>p.life>0);}
  }
  if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>({self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action:p.id===state.me?actor.action:p.action,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(p.action==='sit'?4:0)}));drawSoftware(now,players,cam,particles)}
+ renderLightGlows();
  if(now%120<30)screenLabels();requestAnimationFrame(frame)}
 // WebRTC mesh voice: opt-in microphone, P2P audio. HTTPS/local-only; restricted NAT may require TURN.
 async function peerFor(id){let pc=rtc.get(id);if(pc)return pc;
@@ -362,7 +373,7 @@ $$('[data-open-tab]').forEach(b=>b.addEventListener('click',()=>{playSound();ope
 $('#closeMobilePanel').onclick=closeMobilePanel;
 $('#mobilePanelScrim').onclick=closeMobilePanel;
 $('#mobileSeat').onclick=interact;
-$('#mobileInteract').onclick=interact;
+const mobileInteractButton=$('#mobileInteract');if(mobileInteractButton)mobileInteractButton.onclick=interact;
 window.addEventListener('resize',()=>{if(!isMobile())closeMobilePanel()});
 $$('.tabs button').forEach(b=>b.addEventListener('click',()=>{if(isMobile())$('#mobilePanelTitle').textContent=({write:'나의 글쓰기',together:'함께하기',chat:'모임 대화'})[b.dataset.tab]}));
 $$('#avatarTypes button').forEach(b=>b.addEventListener('click',()=>{

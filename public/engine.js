@@ -141,6 +141,13 @@ B(6.35,1.85,-2.55,.06,1.50,2.65,'#d3d4ca');B(6.31,2.95,-2.55,.08,.07,2.65,'#bcb8
 for(const x of [-5.6,5.6]){B(x,.018,-1,2.2,.016,.37,'#b89474');B(x,3.52,-1,.94,.13,.18,'#f6e8ce');
  S(x,3.20,-.9,.14,'#ffe6ab',12,7)}
 
+// V8 additional visible light fixtures and star ornaments to give the room more depth.
+function hangingLamp(x,z,drop=2.9){C(x,3.85,z,.022,.9,'#7e6757');C(x,drop,z,.24,.18,'#f7ecda');S(x,drop+.12,z,.16,'#ffe7b4',10,7)}
+for(const [x,z] of [[-2.6,4.9],[0,4.9],[2.6,4.9],[-2.4,6.4],[0,6.4],[2.4,6.4]])hangingLamp(x,z,2.95);
+for(let i=0;i<10;i++){const x=-7.2+i*1.6,z=1.1+Math.sin(i*.55)*.4;C(x,3.68,z,.018,.18,'#6f5a4f');S(x,3.57,z,.075,i%2?'#ffe8b6':'#fff2d0',8,6)}
+for(const [x,z] of [[-7.1,-6.9],[-5.2,-6.25],[-3.2,-7.1],[-1.8,-6.35]]){C(x,3.75,z,.016,.24,'#705c52');S(x,3.58,z,.07,'#ffe5a8',8,6)}
+for(const [x,z] of [[-7.45,9.6],[-6.8,10.25],[-6.1,9.85],[6.3,9.9],[7.0,10.35],[7.6,9.7]]){S(x,3.45,z,.08,'#fff0c8',8,6);S(x,3.45,z,.04,'#ffe1a0',6,5)}
+
 function createBuffer(mesh){const array=new Float32Array(mesh.data);if(!gl)return {buf:null,count:0};let buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,array,gl.STATIC_DRAW);return {buf,count:array.length/6}}
 const staticBuffer=createBuffer(world);
 function draw(mesh,mvp){if(!gl)return;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,24,12);gl.uniformMatrix4fv(uMatrix,false,mvp);gl.drawArrays(gl.TRIANGLES,0,mesh.count)}
@@ -173,8 +180,15 @@ function makeAvatar(color,pose=0,gender='male'){
  // Face is unobstructed: hair stays as a neat cap on top and entirely behind cheeks.
  const hy=1.83+down;
  if(female){
-  ell(0,hy-.085,-.110,.264,.361,.145,hair,22,15); // short smooth bob, at BACK
-  ell(0,hy-.286,-.13,.253,.118,.124,hair,20,11);
+  // More natural short bob: gentle volume at the back, rounded sides,
+  // and a soft front hairline without heavy cheek strands.
+  ell(0,hy-.02,-.118,.286,.302,.170,hair,24,16);    // main bob volume
+  ell(0,hy-.238,-.108,.274,.118,.155,hair,22,12);   // curved lower edge
+  ell(-.145,hy-.028,-.070,.080,.148,.110,hair,16,11); // left side
+  ell(.145,hy-.028,-.070,.080,.148,.110,hair,16,11);  // right side
+  ell(0,hy+.196,-.102,.262,.124,.172,hair,24,14);   // crown line
+  ell(-.085,hy+.118,.190,.053,.040,.030,hair,12,8); // soft left fringe
+  ell(.085,hy+.118,.190,.053,.040,.030,hair,12,8);  // soft right fringe
  }else{
   ell(0,hy+.072,-.110,.255,.188,.143,hair,20,12);
  }
