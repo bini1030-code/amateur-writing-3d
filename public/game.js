@@ -96,11 +96,11 @@ function message(p){
   case 'move':{const other=peers.get(p.id);if(other){other.moving=Math.hypot(other.x-p.x,other.z-p.z)>.02;other.lastMoved=performance.now();other.x=p.x;other.z=p.z;other.rot=p.rot;other.action=p.action;}break;}
   case 'scene':{
     if(p.action==='lamp'){state.lampOn=p.lampOn!==false;lightPulse(6.95,10.15,state.lampOn?'#ffe5a2':'#b8c9e4',145);toast('스탠드 조명을 '+(state.lampOn?'켰어요.':'껐어요.'));playSound('click');}
-    else if(p.action==='water'){const plant=wateringPlants.find(v=>v.id===p.plant);if(plant){lightPulse(plant.x,plant.z,'#b5edbd',145);playSound('tea');toast((p.name||'누군가')+' 님이 식물에 물을 주었어요.');}}
+    else if(p.action==='water'){const plant=wateringPlants.find(v=>v.id===p.plant);if(plant){lightPulse(plant.x,plant.z,'#b5edbd',145,'water');playSound('tea');toast((p.name||'누군가')+' 님이 식물에 물을 주었어요.');}}
     break;
   }
   case 'chat':{receiveChat(p);bubble(p.id,p.text);break;}
-  case 'react':{const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
+  case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
   case 'mood':{const mood={joy:'☀️ 기쁨',sad:'💧 슬픔',anger:'🔥 화',worry:'🌧️ 불안',peace:'🍃 평온',hope:'✨ 기대'}[p.kind];const other=peers.get(p.id);if(mood){toast(p.name+' 님이 오늘의 마음을 나눴어요 · '+mood);if(other)emote('spark',other.x,other.z);playSound('heart')}break;}
 
   case 'reading':showReading(p.reading);if(p.reading){toast(p.reading.mode==='request'?p.reading.name+' 님이 대신 읽기를 부탁했어요.':'함께 낭독하는 시간이 시작됐어요.');playSound('reading')}else toast('낭독을 마쳤어요. 따뜻한 박수를 보내요.');break;
@@ -181,11 +181,13 @@ $('#clearChatLocal').onclick=()=>{
 function addSystem(text){const el=document.createElement('div');el.className='msg system';el.textContent=text;$('#messages').append(el);$('#messages').scrollTop=$('#messages').scrollHeight;}
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
 const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬'};
-// Interaction visuals are intentionally LIGHT ONLY: no floating emojis, droplets or particle bubbles.
+// A short, stationary symbol appears and disappears WITH its light glow.
+// Only the tea/cookie/jelly reactions gain pictograms; no droplets or flying particles.
 function emote(kind,x,z){
  const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df'};
- lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132);
- burstLight={x,y:1.63,z,kind,end:performance.now()+1000};
+ const effectIcon=['tea','cookie','jelly'].includes(kind)?kind:null;
+ lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132,effectIcon);
+ burstLight={x,y:1.63,z,kind,end:performance.now()+(effectIcon?800:1000)};
 }
 function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);playSound(kind)}
 $$('[data-react]').forEach(b=>b.addEventListener('click',()=>react(b.dataset.react)));
@@ -682,7 +684,25 @@ function cameraUpdate(dt){
  cam.matrix=mul(persp(Math.PI/2.55,canvas.width/canvas.height,.07,95),lookAt(cam.eye,cam.center));
 }
 function screenAt(pos){if(!cam.matrix)return null;const [x,y,z]=pos,m=cam.matrix,w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w<.12)return null;const a=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,b=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;return [(a*.5+.5)*canvas.clientWidth,(.5-b*.5)*canvas.clientHeight,w]}
-function lightPulse(x,z,color='#ffe2a8',size=130){const pt=screenAt([x,1.8,z]);if(!pt)return;const el=document.createElement('div');el.className='lightPulse';el.style.left=pt[0]+'px';el.style.top=pt[1]+'px';el.style.setProperty('--pulse-color',color);el.style.setProperty('--pulse-size',size+'px');$('#fxlayer').append(el);setTimeout(()=>el.remove(),820)}
+// The pictogram and light pulse share ONE container and ONE lifetime (820ms).
+// Stationary icons are distinct from the old floating droplet/particle animation.
+function lightPulse(x,z,color='#ffe2a8',size=130,actionIcon=null){
+ const pt=screenAt([x,1.8,z]);if(!pt)return;
+ const holder=document.createElement('div');holder.className='actionEffect';
+ holder.style.left=pt[0]+'px';holder.style.top=pt[1]+'px';
+ const glow=document.createElement('div');glow.className='lightPulse';
+ glow.style.setProperty('--pulse-color',color);glow.style.setProperty('--pulse-size',size+'px');
+ holder.append(glow);
+ const glyphs={tea:'🍵',cookie:'🍪',jelly:'🍬'};
+ if(actionIcon==='water'||Object.prototype.hasOwnProperty.call(glyphs,actionIcon)){
+  const icon=document.createElement('div');icon.className='actionEffectIcon';
+  if(actionIcon==='water')icon.innerHTML=WATERING_CAN_ICON;
+  else icon.textContent=glyphs[actionIcon];
+  holder.append(icon);
+ }
+ $('#fxlayer').append(holder);
+ setTimeout(()=>holder.remove(),820);
+}
 let lastLightPaint=0;function renderLightGlows(){const timestamp=performance.now();if(timestamp-lastLightPaint<65)return;lastLightPaint=timestamp;const layer=$('#lightlayer');if(!layer||!cam.matrix)return;const out=[];for(const l of worldLights){if(l.id==='standing-lamp'&&!state.lampOn)continue;const pt=screenAt([l.x,l.y,l.z]);if(!pt)continue;const [sx,sy,w]=pt;if(sx<-120||sx>canvas.clientWidth+120||sy<-120||sy>canvas.clientHeight+120)continue;const dist=Math.hypot(cam.eye[0]-l.x,cam.eye[1]-l.y,cam.eye[2]-l.z);const size=Math.max(58,l.size*Math.min(1.75,8/Math.max(3,dist)));const alpha=(l.alpha||.2)*Math.max(.18,Math.min(1,.98-dist/24));out.push(`<div class="sceneGlow" style="left:${sx}px;top:${sy}px;--size:${size}px;--glow:${l.color};--alpha:${alpha}"></div>`)}layer.innerHTML=out.join('')}
 function screenLabels(){if(!state.connected)return;const labels=[];for(const door of [{x:-5.6,z:-1.0,t:'☕ 다과룸'},{x:5.6,z:-1.0,t:'✧ 여섯 얼굴의 방'}]){
  if(Math.hypot(actor.x-door.x,actor.z-door.z)<8){const loc=screenAt([door.x,2.93,door.z]);if(loc&&loc[0]>20&&loc[0]<canvas.clientWidth-20&&loc[1]>90&&loc[1]<canvas.clientHeight-30)labels.push(`<div class="door-label" style="left:${loc[0]}px;top:${loc[1]}px">${door.t}</div>`)}}
