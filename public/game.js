@@ -8,7 +8,7 @@ let saved={};try{saved=JSON.parse(localStorage.getItem('amateur-writing-live-v2'
 const state={name:saved.name||'',code:new URLSearchParams(location.search).get('room')||saved.code||'NIGHT',color:saved.color||0,gender:saved.gender==='female'?'female':'male',notes:saved.notes||'',topic:saved.topic||'',title:saved.title||'',story:saved.story||'',step:0,read:null,connected:false,me:null,mic:false,muted:false,room:'main',sitting:false,restSpot:null,lampOn:true,timer:20*60,running:false};
 function persist(){try{localStorage.setItem('amateur-writing-live-v2',JSON.stringify({name:state.name,code:state.code,color:state.color,gender:state.gender,notes:state.notes,topic:state.topic,title:state.title,story:state.story}))}catch(e){}}
 let burstLight=null;let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
-const actor={x:.2,z:7.6,rot:Math.PI,action:'stand',moving:false};
+const actor={x:0,z:9.1,rot:Math.PI,action:'stand',moving:false};
 const cam={yaw:0,pitch:.31,dist:4.7,followPos:null,first:false,eye:[0,0,0],center:[0,0,0],matrix:null};
 const worldLights=[
  {x:-2.6,y:3.05,z:4.9,color:'#ffdca0',size:230,alpha:.48},{x:0,y:3.05,z:4.9,color:'#ffdca0',size:255,alpha:.52},{x:2.6,y:3.05,z:4.9,color:'#ffdca0',size:230,alpha:.48},
@@ -90,7 +90,7 @@ function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($(
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:.2}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:7.6}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);if(p.reading)showReading(p.reading);break;
+  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);if(p.reading)showReading(p.reading);break;
   case 'join':peers.set(p.person.id,{...p.person,rx:p.person.x,rz:p.person.z,rr:p.person.rot});renderPeople();addSystem(p.person.name+' 님이 모임방에 왔어요.');playSound('click');if(state.mic)offer(p.person.id);break;
   case 'leave':{let gone=peers.get(p.id);if(gone)addSystem(gone.name+' 님이 나갔어요.');peers.delete(p.id);const pc=rtc.get(p.id);if(pc){pc.close();rtc.delete(p.id)}document.getElementById('audio-'+p.id)?.remove();renderPeople();break;}
   case 'move':{const other=peers.get(p.id);if(other){other.moving=Math.hypot(other.x-p.x,other.z-p.z)>.02;other.lastMoved=performance.now();other.x=p.x;other.z=p.z;other.rot=p.rot;other.action=p.action;}break;}
@@ -398,6 +398,11 @@ const wateringPlants=[
  {id:'mind-front',x:.72,z:-3.0,room:'mind'}
 ];
 const standLamp={x:6.95,z:10.15,room:'main'};
+// The real book spines are on the left wall of the main writing room.
+const bookshelves=[{id:'main-library',x:-7.85,z:2.40,w:.48,h:2.28,room:'main'}];
+const WATERING_CAN_ICON=`<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 20h25l-3 17H13L9 20Z" fill="#9bc0b1" stroke="#f2fff6" stroke-width="2.2" stroke-linejoin="round"/><path d="M34 22c8-1 9 8 2 10h-4" stroke="#e6f6ec" stroke-width="3" stroke-linecap="round"/><path d="M12 20 7 10 2 11" stroke="#d7ede0" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><path d="m9 19 9-9" stroke="#d7ede0" stroke-width="3" stroke-linecap="round"/><path d="M6 6v2m5-4 1 2m-1 4 3 1" stroke="#b5dce8" stroke-width="2.3" stroke-linecap="round"/></svg>`;
+const ICON_LIBRARY={snacks:'🍵',water:WATERING_CAN_ICON,bookshelf:'📖',lamp:'💡',chair:'🪑',stand:'🚶',mind:'💭',lounge:'🛋️'};
+
 function closestWateringPlant(){let best=null,distance=Infinity;for(const plant of wateringPlants){if(plant.room!==state.room)continue;const d=Math.hypot(actor.x-plant.x,actor.z-plant.z);if(d<1.28&&d<distance){best=plant;distance=d}}return best?{...best,distance}:null}
 function offsetByRot(x,z,rot,forward=0,side=0){return {x:x+Math.sin(rot)*forward+Math.cos(rot)*side,z:z+Math.cos(rot)*forward-Math.sin(rot)*side}}
 function standUp(){
@@ -455,19 +460,23 @@ function nearbyInteraction(){
   // Closest furniture wins where a plant overlaps a lamp or a chair.
   const candidates=[];
   if(dist<1.21)candidates.push({score:dist-.50,action:{type:'chair',label:'의자에 앉기',detail:'상호작용을 누르면 자리에 앉습니다.'}});
-  if(plant)candidates.push({score:plant.distance-.47,action:{type:'water',plant,label:'식물에 물주기',detail:'상호작용하면 식물이 은은한 빛으로 반응해요.'}});
+  if(plant)candidates.push({score:plant.distance-.47,action:{type:'water',plant,label:'식물에 물주기',detail:'물뿌리개로 식물에 물을 주는 행동이에요.'}});
   if(lampDistance<1.27)candidates.push({score:lampDistance-.25,action:{type:'lamp',label:state.lampOn?'스탠드 조명 끄기':'스탠드 조명 켜기',detail:'상호작용으로 방의 조명 밝기를 바꿉니다.'}});
+  for(const shelf of bookshelves){
+   const d=nearestRectDistance(actor.x,actor.z,shelf.x,shelf.z,shelf.w,shelf.h);
+   if(d<.87)candidates.push({score:d+.14,action:{type:'bookshelf',label:'책장에서 글 읽기',detail:'📖 책 아이콘을 따라 서가를 펼쳐 읽어요.'}})
+  }
   candidates.sort((a,b)=>a.score-b.score);
   return candidates[0]?.action||null;
  }
  if(state.room==='tea'){
   const d1=nearestRectDistance(actor.x,actor.z,-4.5,-5.1,3.85,1.66);
   const d2=nearestRectDistance(actor.x,actor.z,-4.6,-9.15,7.8,1.35);
-  if(plant&&plant.distance<1.15)return {type:'water',plant,label:'식물에 물주기',detail:'상호작용하면 식물이 은은한 빛으로 반응해요.'};
-  return Math.min(d1,d2)<.83?{type:'snacks',label:'차 · 과자 · 젤리 고르기',detail:'상호작용으로 다과 메뉴를 엽니다.'}:null
+  if(plant&&plant.distance<1.15)return {type:'water',plant,label:'식물에 물주기',detail:'물뿌리개로 식물에 물을 주는 행동이에요.'};
+  return Math.min(d1,d2)<.83?{type:'snacks',label:'다과 고르기',detail:'상호작용을 누른 뒤 원하는 다과를 골라요.'}:null
  }
  if(state.room==='mind'){
-  if(plant&&plant.distance<1.22)return {type:'water',plant,label:'식물에 물주기',detail:'상호작용하면 식물이 은은한 빛으로 반응해요.'};
+  if(plant&&plant.distance<1.22)return {type:'water',plant,label:'식물에 물주기',detail:'물뿌리개로 식물에 물을 주는 행동이에요.'};
   const lounge=closestMindLounge();
   const table=nearMindTable();
   // Proximity to the nearest furniture surface decides which *single* action is offered.
@@ -492,18 +501,73 @@ let lastHintKey='';
 function updateProximityHint(){
  const hint=$('#proximityHint');if(!hint)return;
  const action=nearbyInteraction();
- const hidden=!!$('#entrance:not(.hidden)')||!!document.querySelector('.mindOverlay:not(.hidden)')||!!document.querySelector('.snackOverlay:not(.hidden)');
+ const hidden=!!$('#entrance:not(.hidden)')||!!document.querySelector('.mindOverlay:not(.hidden)')||!!document.querySelector('.snackOverlay:not(.hidden)')||!!document.querySelector('.libraryOverlay:not(.hidden)');
  if(!action||hidden){hint.hidden=true;lastHintKey='';return}
  const key=action.type+action.label;
- if(lastHintKey!==key){$('#proximityTitle').textContent=action.label;$('#proximityText').textContent=action.detail;lastHintKey=key}
+ if(lastHintKey!==key){
+  $('#proximityTitle').textContent=action.label;
+  $('#proximityText').textContent=action.detail;
+  const icon=$('#proximityIcon');icon.innerHTML=ICON_LIBRARY[action.type]||'✦';
+  const chips=$('#proximityChoices');chips.textContent='';
+  const choices=action.type==='snacks'?[['🍵','차 마시기'],['🍪','과자 먹기'],['🍬','젤리 먹기']]:
+    action.type==='water'?[['🪴','화분에 물주기']]:action.type==='bookshelf'?[['📖','책 읽기']]:[];
+  for(const [emoji,title] of choices){const chip=document.createElement('span');chip.className='proximityChoice';
+   const art=document.createElement('span');art.textContent=emoji;const text=document.createElement('span');text.textContent=title;
+   chip.append(art,text);chips.append(chip)}
+  chips.hidden=!choices.length;
+  lastHintKey=key;
+ }
  hint.hidden=false;
 }
+
+// V14.6: Small self-contained bookshelf reader. Never modifies the shared reading session.
+const libraryBooks=[
+ {title:'작은 안부',pages:[
+  '어느 날 저녁, 문 앞에 작은 쪽지가 놓여 있었다.\n\n“오늘도 잘 지내고 있나요?”\n\n별다른 말도 아니었는데, 나는 현관에 한참 서 있었다. 잘 지낸다는 말이 무엇인지 오래 생각해 본 날이었다.',
+  '우리는 종종 누군가의 안부를 묻는 일이 대단한 대답을 요구한다고 생각한다. 그러나 어떤 날에는 “응, 그냥 여기 있어.”라는 한마디면 충분하다.\n\n그날 밤 나는 답장을 적었다. “고마워요. 오늘은 이 말이 참 좋았어요.”'
+ ]},
+ {title:'창가의 밤',pages:[
+  '불을 조금 낮추자 창밖의 소리들이 천천히 가까워졌다. 지나가는 차 한 대, 먼 곳의 웃음소리, 바람에 흔들리는 나뭇잎.\n\n낮에는 아무도 주목하지 않던 것들이 밤이 되자 각자의 이야기를 들려주었다.',
+  '나는 창문 가까이 앉아 오늘 못다 한 말을 떠올렸다. 말하지 못했다고 해서 사라지는 마음은 아니었다.\n\n조금 늦더라도 괜찮았다. 어떤 문장은 조용한 시간에야 비로소 자기 자리를 찾으니까.'
+ ]},
+ {title:'느리게 걷는 마음',pages:[
+  '산책을 나갈 때마다 나는 가장 먼저 앞서 가려고 했다. 빨리 돌아와야 할 이유가 있는 것도 아닌데 말이다.\n\n어느 날은 걸음을 늦추었다. 발아래 작은 돌멩이가 있었고, 길 끝의 나무는 생각보다 푸르렀다.',
+  '마음에도 속도가 있다는 걸 그때 알았다. 몸보다 조금 늦게 도착하는 기분이 있었다.\n\n오늘은 잠시 기다려 주기로 한다. 내 마음이 나를 따라올 수 있도록, 한 걸음씩 천천히.'
+ ]}
+];
+const libraryState={open:false,index:0,page:0};
+function refreshLibraryBook(){
+ const book=libraryBooks[libraryState.index];if(!book)return;
+ libraryState.page=Math.min(Math.max(0,libraryState.page),book.pages.length-1);
+ $('#libraryBookTitle').textContent=book.title;
+ $('#libraryBody').textContent=book.pages[libraryState.page];
+ $('#libraryProgress').textContent=`${libraryState.page+1} / ${book.pages.length}쪽`;
+ $('#libraryPrev').disabled=libraryState.page===0;
+ $('#libraryNext').disabled=libraryState.page===book.pages.length-1;
+ $$('#libraryChoices [data-library-book]').forEach(b=>{const active=+b.dataset.libraryBook===libraryState.index;
+  b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active))});
+}
+function openLibrary(){
+ if(!state.connected||state.room!=='main')return;
+ if(bookState.open)closeBook();
+ hideSnackMenu();hideMindModal();closeMobilePanel();
+ libraryState.open=true;$('#libraryModal').classList.remove('hidden');$('#libraryModal').setAttribute('aria-hidden','false');
+ refreshLibraryBook();playSound('reading');
+}
+function closeLibrary(){
+ libraryState.open=false;$('#libraryModal').classList.add('hidden');$('#libraryModal').setAttribute('aria-hidden','true');
+}
+$('#libraryClose').onclick=closeLibrary;
+$('#libraryModal').addEventListener('click',e=>{if(e.target.id==='libraryModal')closeLibrary()});
+$$('#libraryChoices [data-library-book]').forEach(b=>b.onclick=()=>{libraryState.index=+b.dataset.libraryBook;libraryState.page=0;refreshLibraryBook();playSound('click')});
+$('#libraryPrev').onclick=()=>{libraryState.page--;refreshLibraryBook();playSound('click')};
+$('#libraryNext').onclick=()=>{libraryState.page++;refreshLibraryBook();playSound('click')};
 
 function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='mind'?'✧ 여섯 얼굴의 방에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
  lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='mind'?'#d1b4fa':'#ffd6ae',160);
 }
-function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind')hideMindModal();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','감정 여섯 빛을 따라 마음을 비춰 보는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
+function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind')hideMindModal();if(zone!=='main')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','감정 여섯 빛을 따라 마음을 비춰 보는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){let best=null,dist=1e9;for(const p of chairSeats){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<1.21?best:null}
 function sit(){if(state.sitting||actor.action==='lie'){standUp();return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;state.restSpot={...p,type:'chair'};route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
@@ -556,6 +620,7 @@ function interact(){
  if(choice.type==='stand'){standUp();return}
  if(choice.type==='chair'){sit();return}
  if(choice.type==='snacks'){showSnackMenu();return}
+ if(choice.type==='bookshelf'){openLibrary();return}
  if(choice.type==='lounge'){useMindLounge(choice.spot);return}
  if(choice.type==='mind'){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);return}
  if(choice.type==='water'){send({t:'scene',action:'water',plant:choice.plant.id});return}
@@ -564,7 +629,7 @@ function interact(){
 
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#libraryModal').classList.contains('hidden'))closeLibrary();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAmbient();else startAmbient()});
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}

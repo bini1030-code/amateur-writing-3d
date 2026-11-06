@@ -9,7 +9,7 @@
     </div>
     <div class="chapter"><div class="eyebrow" id="zoneLabel">THE WRITING ROOM</div><h1 id="zoneTitle">밤의 문장들</h1><p id="zoneSub">서로의 이야기가 머무는 작은 방</p></div>
     <div id="worldlabels"></div><div id="proximityHint" class="proximityHint" role="status" aria-live="polite" hidden>
-       <span class="proximityIcon">✦</span><span class="proximityCopy"><strong id="proximityTitle"></strong><small id="proximityText"></small></span>
+       <span class="proximityIcon" id="proximityIcon" aria-hidden="true">✦</span><span class="proximityCopy"><strong id="proximityTitle"></strong><small id="proximityText"></small><span id="proximityChoices" class="proximityChoices" aria-hidden="true"></span></span>
      </div><div id="lightlayer" aria-hidden="true"></div><div id="fxlayer" aria-hidden="true"></div>
     <div class="hud-bottom">
       <div class="controls"><div class="control-title">HOW TO MOVE</div><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 <span class="dotsep">·</span> 마우스 드래그 둘러보기 <span class="dotsep">·</span> <kbd>V</kbd> 1인칭/3인칭</div><div><kbd>E</kbd> 공간별 상호작용 <span class="dotsep">·</span> <kbd>F</kbd> 모임방 의자에 앉기 <span class="dotsep">·</span> <kbd>Enter</kbd> 채팅</div></div>
@@ -28,6 +28,32 @@
         </div><div class="snackBottom">✦ 다과룸에는 의자가 없어요. 편하게 서서 둘러보세요.</div>
       </div>
     </div>
+
+    <!-- V14.6: personal bookshelf reader; separate from the shared reading book. -->
+    <section id="libraryModal" class="libraryOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="libraryHeading">
+      <div class="libraryCard">
+        <header class="libraryHeader">
+          <div><span class="libraryEyebrow">THE QUIET BOOKSHELF · 밤의 작은 서가</span>
+             <h2 id="libraryHeading">📖 책장에서 한 편 읽기</h2>
+             <p>책을 골라 천천히 읽어보세요. 이 글들은 서가를 위해 쓴 짧은 창작 글입니다.</p></div>
+          <button type="button" id="libraryClose" aria-label="책장 닫기">✕</button>
+        </header>
+        <nav id="libraryChoices" class="libraryChoices" aria-label="서가 책 선택">
+          <button type="button" class="selected" data-library-book="0"><span>📗</span> 작은 안부</button>
+          <button type="button" data-library-book="1"><span>📘</span> 창가의 밤</button>
+          <button type="button" data-library-book="2"><span>📙</span> 느리게 걷는 마음</button>
+        </nav>
+        <article class="libraryPaper">
+          <div class="libraryPaperTop">✦ &nbsp; 아마추어 글쓰기 · 책장의 짧은 글</div>
+          <h3 id="libraryBookTitle">작은 안부</h3><p class="libraryBookAuthor">밤의 문장들 · 서가를 위한 창작 글</p>
+          <div class="libraryBody" id="libraryBody" tabindex="0"></div>
+          <div class="libraryPager"><button type="button" id="libraryPrev" aria-label="이전 페이지">‹ 이전</button>
+            <span id="libraryProgress" aria-live="polite">1 / 1쪽</span>
+            <button type="button" id="libraryNext" aria-label="다음 페이지">다음 ›</button></div>
+        </article>
+        <div class="libraryHint">이 책장은 내 기기에서만 펼쳐져요. 함께 낭독하는 참가자의 글과는 별개입니다.</div>
+      </div>
+    </section>
 
     <section id="mindModal" class="mindOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="mindHeading">
       <div class="mindCard">

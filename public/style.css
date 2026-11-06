@@ -222,3 +222,36 @@
 .proximityHint[hidden]{display:none!important}.proximityIcon{font-size:20px;flex:0 0 auto;color:#f0d8ad}.proximityCopy{display:flex;flex-direction:column;gap:3px}.proximityCopy strong{font-size:13px;font-weight:800;word-break:keep-all}.proximityCopy small{font-size:10px;opacity:.83;word-break:keep-all}
 @media(max-width:700px){.proximityHint{bottom:calc(145px + env(safe-area-inset-bottom));min-width:0;width:max-content;max-width:calc(100% - 30px);padding:10px 13px;border-radius:14px}.proximityCopy strong{font-size:11px}.proximityCopy small{font-size:9px}}
 @media(max-width:700px) and (max-height:620px){.proximityHint{bottom:calc(94px + env(safe-area-inset-bottom))}}
+
+/* V14.6: icon-rich interaction previews */
+.proximityIcon{display:flex;align-items:center;justify-content:center;font-size:29px;min-width:37px;line-height:1.1}
+.proximityIcon svg{width:39px;height:39px;filter:drop-shadow(0 0 4px #9bdac66a)}
+.proximityChoices{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.proximityChoices[hidden]{display:none}
+.proximityChoice{display:inline-flex;gap:4px;align-items:center;padding:3px 8px;border-radius:999px;background:#eee5ee21;border:1px solid #f7e6db38;font-size:10px;color:#fff7e9;white-space:nowrap}
+.proximityChoice>span:first-child{font-size:15px;line-height:1}
+@media(max-width:700px){.proximityIcon{min-width:29px;font-size:24px}.proximityIcon svg{width:31px;height:31px}.proximityChoices{gap:4px}.proximityChoice{font-size:9px;padding:3px 5px}.proximityChoice>span:first-child{font-size:13px}}
+
+/* V14.6: cozy, independently paginated bookshelf reader */
+.libraryOverlay.hidden{display:none!important}
+.libraryOverlay{position:fixed;inset:0;z-index:35;background:rgba(16,17,27,.55);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(5px)}
+.libraryCard{width:min(690px,100%);max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;background:#f8f0e5;border:1px solid #d8c6b1;border-radius:21px;box-shadow:0 26px 75px #10101e9c;color:#544a43;padding:22px}
+.libraryHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}
+.libraryEyebrow{font-size:10px;letter-spacing:1.2px;color:#9a756d;font-weight:800}
+.libraryHeader h2{font:800 23px/1.35 system-ui,sans-serif;color:#493e46;margin:7px 0}
+.libraryHeader p{font-size:12px;line-height:1.6;margin:0;color:#8b766c}
+#libraryClose{flex:0 0 auto;border:0;border-radius:50%;background:#e9dcca;color:#55443f;width:33px;height:33px;cursor:pointer}
+.libraryChoices{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 15px}
+.libraryChoices button{display:flex;align-items:center;gap:6px;padding:9px 11px;border-radius:10px;border:1px solid #e0cab3;background:#fffaf2;color:#745d54;cursor:pointer;font-size:12px}
+.libraryChoices button.selected{border-color:#ae8398;background:#f4e7ee;color:#634c61;font-weight:800}
+.libraryChoices button span{font-size:19px}
+.libraryPaper{background:#fffdf5;border:1px solid #e7daca;border-radius:14px;padding:22px 24px;box-shadow:inset 0 0 30px #eee3d34d}
+.libraryPaperTop{font-size:10px;letter-spacing:1.2px;color:#b8a08c}
+.libraryPaper h3{margin:12px 0 3px;font-size:23px;color:#53423f;line-height:1.3;font-family:Georgia,serif}
+.libraryBookAuthor{font-size:11px;color:#aa9282;margin:0 0 19px}
+.libraryBody{white-space:pre-line;min-height:145px;font-size:15px;line-height:2;color:#554a43;word-break:keep-all;outline-offset:5px}
+.libraryPager{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:22px;padding-top:14px;border-top:1px solid #e7ddd1}
+.libraryPager button{padding:8px 14px;border-radius:8px;border:1px solid #d4bcac;background:#f4eae1;color:#69554b;cursor:pointer}
+.libraryPager button:disabled{opacity:.38;cursor:default}.libraryPager span{color:#9b8173;font-size:12px}
+.libraryHint{font-size:10px;color:#937c70;margin-top:13px;text-align:center}
+@media(max-width:700px){.libraryOverlay{padding:10px;align-items:flex-end;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.libraryCard{padding:15px;max-height:calc(100dvh - 24px)}.libraryHeader h2{font-size:20px}.libraryHeader p{font-size:11px}.libraryChoices{margin:12px 0;gap:5px}.libraryChoices button{font-size:10px;padding:8px}.libraryPaper{padding:15px}.libraryPaper h3{font-size:20px}.libraryBody{font-size:13px;line-height:1.85;min-height:105px}}
