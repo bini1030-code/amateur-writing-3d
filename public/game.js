@@ -707,7 +707,7 @@ function updateProximityHint(){
 
 // V14.9: reliable shared bookshelf. Server acknowledgement is authoritative;
 // draft text is always kept locally and is never published automatically.
-const libraryState={open:false,id:null,page:0,view:'shelf',search:'',books:[],publishedIds:new Set(),editableIds:new Set(),serverEditableIds:new Set(),keyIndexById:{},deletedIds:new Set(),room:'',editing:false};
+const libraryState={open:false,id:null,page:0,view:'shelf',search:'',authorFilter:'all',galleryScrollTop:0,books:[],publishedIds:new Set(),editableIds:new Set(),serverEditableIds:new Set(),keyIndexById:{},deletedIds:new Set(),room:'',editing:false};
 const BOOKSHELF_LIMIT=100;
 let shelfPending=null,shelfTimer=null,shelfActionPending=null,shelfActionTimer=null;
 const libraryCacheKey=code=>'amateur-writing-shelf-v1-'+code;
@@ -1078,29 +1078,53 @@ function renderLibraryGallery(){
  }
  const books=displayLibraryBooks();
  const q=libraryState.search.trim().toLocaleLowerCase('ko-KR');
- const filtered=q?books.filter(b=>(b.title+' '+b.author).toLocaleLowerCase('ko-KR').includes(q)):books;
+ const allShared=books.filter(b=>libraryState.publishedIds.has(b.id));
+ // Create author choices only from PUBLIC works: other people's unpublished drafts never enter this list.
+ const authorCounts=new Map();
+ for(const b of allShared){const author=(b.author||'이름 없는 글쓴이').trim();authorCounts.set(author,(authorCounts.get(author)||0)+1)}
+ const authorNames=[...authorCounts.keys()].sort((a,b)=>a.localeCompare(b,'ko-KR'));
+ const authorFilter=$('#libraryAuthorFilter');
+ if(authorFilter){
+  if(libraryState.authorFilter!=='all'&&!authorCounts.has(libraryState.authorFilter))libraryState.authorFilter='all';
+  const choices=[['all',`모든 글쓴이 (${authorNames.length}명)`],...authorNames.map(a=>[a,`${a} (${authorCounts.get(a)}권)`])];
+  if(authorFilter.options.length!==choices.length||choices.some((choice,i)=>authorFilter.options[i]?.value!==choice[0]||authorFilter.options[i]?.textContent!==choice[1])){
+   authorFilter.replaceChildren(...choices.map(([value,label])=>{const option=document.createElement('option');option.value=value;option.textContent=label;return option}));
+  }
+  authorFilter.value=libraryState.authorFilter;
+ }
+ const filtered=books.filter(b=>{
+  if(q&&!(b.title+' '+b.author).toLocaleLowerCase('ko-KR').includes(q))return false;
+  return libraryState.authorFilter==='all'||(b.author||'이름 없는 글쓴이').trim()===libraryState.authorFilter;
+ });
  const shared=filtered.filter(b=>libraryState.publishedIds.has(b.id));
  const missing=filtered.filter(b=>!libraryState.publishedIds.has(b.id)&&b.previouslyPublished);
  const privateBooks=filtered.filter(b=>canEditPrivate(b)&&!b.previouslyPublished);
- $('#libraryCount').textContent=q?`검색 결과 ${filtered.length}권 · 공개 ${shared.length}권 · 공개 이력 확인 ${missing.length}권 · 비공개 ${privateBooks.length}편`:`모임방 공개 ${shared.length}권 · 공개 이력 확인 ${missing.length}권 · 비공개 ${privateBooks.length}편`;
+ const authorGroups=new Map();
+ for(const b of shared){const author=(b.author||'이름 없는 글쓴이').trim();if(!authorGroups.has(author))authorGroups.set(author,[]);authorGroups.get(author).push(b)}
+ const visibleAuthors=[...authorGroups.keys()].sort((a,b)=>a.localeCompare(b,'ko-KR'));
+ const summary=`공개 ${shared.length}권 · 글쓴이 ${visibleAuthors.length}명 · 공개 확인 ${missing.length}권 · 비공개 ${privateBooks.length}편`;
+ $('#libraryCount').textContent=q||libraryState.authorFilter!=='all'?`선택한 책장 · ${summary}`:`우리 모임 · ${summary}`;
  const fragment=document.createDocumentFragment();
- function group(title,sub,entries){
-  const section=document.createElement('section');section.className='libraryBookGroup';
-  const heading=document.createElement('div');heading.className='libraryGroupHeading';
-  const h=document.createElement('strong');h.textContent=title+' ('+entries.length+')';
+ function group(title,sub,entries,kind='other',authorName=''){
+  const section=document.createElement('section');section.className='libraryBookGroup'+(kind==='author'?' libraryAuthorSection':'');
+  if(kind==='author')section.dataset.authorName=authorName;
+  const heading=document.createElement('div');heading.className='libraryGroupHeading'+(kind==='author'?' libraryAuthorHeading':'');
+  if(kind==='author'){
+   const avatar=document.createElement('span');avatar.className='libraryAuthorAvatar';avatar.textContent=Array.from(authorName||'글')[0]||'글';avatar.setAttribute('aria-hidden','true');heading.append(avatar);
+  }
+  const texts=document.createElement('div');texts.className='libraryHeadingTexts';
+  const h=document.createElement('strong');h.textContent=title;
   const hint=document.createElement('small');hint.textContent=sub;
-  heading.append(h,hint);section.append(heading);
+  texts.append(h,hint);heading.append(texts);section.append(heading);
   const grid=document.createElement('div');grid.className='libraryBookTiles';
   for(const b of entries){
    const btn=document.createElement('button');btn.type='button';btn.className='libraryBookTile';
    btn.dataset.libraryBook=b.id;
    const privateBook=canEditPrivate(b);
-   btn.setAttribute('aria-label',`『${b.title}』, 글쓴이 ${b.author}${b.previouslyPublished?' (이전에 공개한 글, 서버 재확인 필요)':privateBook?' (나만 볼 수 있는 비공개 글)':''} — 펼쳐 읽기`);
+   btn.setAttribute('aria-label',`『${b.title}』, 글쓴이 ${b.author}${b.previouslyPublished?' (이전에 공개한 글, 서버 재확인 필요)':privateBook?' (나만 볼 수 있는 비공개 글)':''} — 스크롤로 끝까지 읽기`);
    const cover=document.createElement('span');cover.className='libraryBookCover tone-'+coverToneFor(b.id);
    if(privateBook)cover.classList.add('private-cover');
    if(b.previouslyPublished)cover.classList.add('missing-cover');
-   // A book cover is divided into a 60% title area and a 40% writer area.
-   // Keep the entire cover clickable, including the separated writer band.
    const titleBand=document.createElement('span');titleBand.className='libraryCoverTitleBand';
    const title=document.createElement('strong');title.className='libraryCoverTitle';title.textContent=b.title;
    titleBand.append(title);
@@ -1117,12 +1141,16 @@ function renderLibraryGallery(){
    }
    grid.append(entry);
   }
-  if(!entries.length){const empty=document.createElement('div');empty.className='libraryGalleryEmpty';empty.textContent=q?'검색 결과가 없습니다.':title.startsWith('우리')?'아직 공유된 책이 없어요.':'비공개 글이 없어요. 글쓰기 화면에서 새 글을 만들 수 있습니다.';grid.append(empty)}
+  if(!entries.length){const empty=document.createElement('div');empty.className='libraryGalleryEmpty';empty.textContent=q||libraryState.authorFilter!=='all'?'해당하는 책이 없습니다.':kind==='empty'?'아직 공개된 책이 없어요.':'비공개 글이 없어요. 글쓰기 화면에서 새 글을 만들 수 있습니다.';grid.append(empty)}
   section.append(grid);fragment.append(section);
  }
- group('우리 모두의 책','이 모임방에 공개한 책 · 다른 참가자도 읽을 수 있어요',shared);
- if(missing.length)group('⚠️ 공개 기록 확인 필요','이전에 공개했지만 현재 서버 목록에서 찾지 못한 글입니다. 서버 영구 저장소를 설정한 뒤 다시 등록하세요.',missing);
- group('내 비공개 글','이 기기에만 저장됨 · 수정·삭제 가능 · 공개하려면 「책장에 꽂기」',privateBooks);
+ if(!shared.length)group('우리 모두의 책','글쓴이의 책을 이곳에서 찾아볼 수 있어요',[],'empty');
+ for(const author of visibleAuthors){
+  const entries=authorGroups.get(author).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  group(`${author} 님의 책`, `공개 작품 ${entries.length}권 · 표지를 누르면 본문 전체를 읽어요`,entries,'author',author);
+ }
+ if(missing.length)group('⚠️ 공개 기록 확인 필요','이전에 공개했지만 현재 서버 목록에서 찾지 못한 글입니다. 영구 저장소를 확인해 주세요.',missing);
+ if(privateBooks.length||libraryState.authorFilter==='all')group('내 비공개 글','이 기기에만 저장됨 · 수정·삭제 가능 · 「책장에 꽂기」를 누르면 즉시 공개',privateBooks);
  holder.replaceChildren(fragment);
 }
 function renderLibraryReader(){
@@ -1130,12 +1158,8 @@ function renderLibraryReader(){
  if(!b){libraryState.view='shelf';return}
  $('#libraryBookTitle').textContent=b.title;
  $('#libraryAuthor').textContent=`✍ 글쓴이: ${b.author} · ${new Date(b.createdAt||Date.now()).toLocaleDateString('ko-KR')}`;
- const pages=paginateBook(b.text,300);
- libraryState.page=Math.min(Math.max(0,libraryState.page),pages.length-1);
- $('#libraryBody').textContent=pages[libraryState.page];
- $('#libraryProgress').textContent=`${libraryState.page+1} / ${pages.length}쪽`;
- $('#libraryPrev').disabled=libraryState.page===0;
- $('#libraryNext').disabled=libraryState.page>=pages.length-1;
+ // Show the WHOLE work at once. Only the modal scrolls; never split bookshelf works into pages.
+ $('#libraryBody').textContent=b.text;
  const isPrivate=canEditPrivate(b);
  const needsRecovery=!!b.previouslyPublished&&!libraryState.publishedIds.has(b.id);
  const manageable=isPrivate||canEditBook(b);
@@ -1169,13 +1193,13 @@ function refreshLibraryBook(){
 function openLibrary(force=false){
  if(!state.connected||(!force&&!['main','mind'].includes(state.room)))return;
  if(bookState.open)closeBook();hideSnackMenu();hideMindModal();closeMobilePanel();
- libraryState.open=true;libraryState.view='shelf';libraryState.search='';storageStatusNotice();
+ libraryState.open=true;libraryState.view='shelf';libraryState.search='';libraryState.authorFilter='all';libraryState.galleryScrollTop=0;storageStatusNotice();
  $('#librarySearch').value='';
  $('#libraryModal').classList.remove('hidden');$('#libraryModal').setAttribute('aria-hidden','false');
  refreshLibraryBook();playSound('reading');
 }
 function closeLibrary(){if(shelfActionPending){libraryActionFeedback('저장/삭제 처리 중입니다. 결과를 확인한 뒤 닫아 주세요.','loading');return}libraryState.editing=false;libraryState.open=false;$('#libraryModal').classList.add('hidden');$('#libraryModal').setAttribute('aria-hidden','true')}
-function returnToLibraryGallery(){if(shelfActionPending){libraryActionFeedback('저장/삭제 처리 결과를 먼저 확인해 주세요.','loading');return}libraryState.editing=false;libraryState.view='shelf';refreshLibraryBook();$('#libraryBack')?.blur();$('#librarySearch')?.focus({preventScroll:true});}
+function returnToLibraryGallery(){if(shelfActionPending){libraryActionFeedback('저장/삭제 처리 결과를 먼저 확인해 주세요.','loading');return}libraryState.editing=false;libraryState.view='shelf';refreshLibraryBook();$('#libraryModal .libraryCard').scrollTop=0;$('#libraryChoices').scrollTop=libraryState.galleryScrollTop;$('#libraryBack')?.blur();$('#librarySearch')?.focus({preventScroll:true});}
 $('#libraryClose').onclick=closeLibrary;
 $('#libraryModal').addEventListener('click',e=>{if(e.target.id==='libraryModal')closeLibrary()});
 $('#libraryChoices').addEventListener('click',e=>{
@@ -1188,13 +1212,12 @@ $('#libraryChoices').addEventListener('click',e=>{
   return;
  }
  const btn=e.target.closest('[data-library-book]');if(!btn)return;
- libraryState.id=btn.dataset.libraryBook;libraryState.page=0;libraryState.view='reader';libraryState.editing=false;libraryActionFeedback('책을 펼쳤습니다. 내 비공개 글은 이 화면에서 수정·삭제할 수 있고, 「바로 공개하기」로 공유할 수 있어요.');
- refreshLibraryBook();$('#libraryBack')?.focus({preventScroll:true});playSound('reading');
+ libraryState.galleryScrollTop=$('#libraryChoices').scrollTop;libraryState.id=btn.dataset.libraryBook;libraryState.page=0;libraryState.view='reader';libraryState.editing=false;libraryActionFeedback('책을 펼쳤습니다. 내 비공개 글은 이 화면에서 수정·삭제할 수 있고, 「바로 공개하기」로 공유할 수 있어요.');
+ refreshLibraryBook();$('#libraryModal .libraryCard').scrollTop=0;$('#libraryBack')?.focus({preventScroll:true});playSound('reading');
 });
 $('#libraryBack').onclick=()=>{returnToLibraryGallery();playSound('click')};
 $('#librarySearch').addEventListener('input',e=>{libraryState.search=e.target.value;renderLibraryGallery()});
-$('#libraryPrev').onclick=()=>{libraryState.page=Math.max(0,libraryState.page-1);renderLibraryReader();playSound('click')};
-$('#libraryNext').onclick=()=>{libraryState.page++;renderLibraryReader();playSound('click')};
+$('#libraryAuthorFilter').addEventListener('change',e=>{libraryState.authorFilter=e.target.value;libraryState.galleryScrollTop=0;$('#libraryChoices').scrollTop=0;renderLibraryGallery();playSound('click')});
 function publishChosenDraft(id){
  const selected=drafts.find(d=>d.id===id);
  if(!selected){shelfFeedback('선택한 비공개 글을 찾을 수 없습니다. 책장을 닫았다가 다시 열어 주세요.','error');return}

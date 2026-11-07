@@ -632,3 +632,45 @@
 .libraryStorageStatus[data-kind="success"]{background:#ebf7ee;color:#174e2c;border-color:#a5d3b0}
 .libraryStorageStatus[data-kind="error"]{background:#fff0f0;color:#8a1926;border-color:#df8994}
 .libraryBookCover.missing-cover{outline:2px dashed #b87c41;outline-offset:-4px}
+
+
+/* v14.24 — author-by-author shared shelf; the 3:2 covers and three-column grid remain. */
+.libraryAuthorFilterBar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 7px;padding:9px 11px;border:1px solid #d9c9ba;border-radius:11px;background:#fffaf3;color:#493c37}
+.libraryAuthorFilterBar label{font-size:13px;font-weight:850;white-space:nowrap}
+#libraryAuthorFilter{flex:0 1 230px;min-width:135px;max-width:100%;padding:8px 31px 8px 10px;border:1px solid #b99c8d;border-radius:9px;background:#fffdf8;color:#49362f;font-size:13px;font-weight:750;cursor:pointer}
+#libraryAuthorFilter:focus-visible{outline:3px solid #af8599;outline-offset:2px}
+.libraryAuthorFilterHint{flex:1 1 175px;font-size:11px;color:#806c62}
+.libraryBookGroup.libraryAuthorSection{padding:10px 11px 13px;border:1px solid #dac6bb;border-left:4px solid #96748d;border-radius:12px;background:linear-gradient(115deg,#fffaf3,#f4ece8);margin:10px 0 12px}
+.libraryAuthorHeading{display:flex;align-items:center;gap:10px;margin:0 0 9px}
+.libraryAuthorHeading .libraryHeadingTexts{display:flex;flex-direction:column;gap:3px;min-width:0}
+.libraryAuthorHeading .libraryHeadingTexts strong{color:#4b394b;font-size:15px;font-weight:850}
+.libraryAuthorHeading .libraryHeadingTexts small{color:#795f6b;font-size:11px}
+.libraryAuthorAvatar{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#826a82;color:white;font-weight:850;font-size:16px;box-shadow:0 2px 5px #533d5430}
+.libraryAuthorSection:nth-child(3n+2){border-left-color:#8c7a59;background:linear-gradient(115deg,#fffbf4,#f6efdf)}
+.libraryAuthorSection:nth-child(3n+2) .libraryAuthorAvatar{background:#86734f}
+.libraryAuthorSection:nth-child(3n+3){border-left-color:#71928e;background:linear-gradient(115deg,#fdfaf3,#eaf2ee)}
+.libraryAuthorSection:nth-child(3n+3) .libraryAuthorAvatar{background:#63827e}
+/* One continuous document: scrolling the outer library card reveals every paragraph. */
+.libraryReaderView{max-width:760px;margin:0 auto}
+.libraryReaderToolbar{position:sticky;top:-3px;z-index:2;padding:9px 5px;background:#f8f0e5f7;border-bottom:1px solid #ddcabc;backdrop-filter:blur(5px)}
+.libraryReaderView .libraryPaper{margin:12px 0 16px;max-width:none}
+.libraryReaderView .libraryContinuousText{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:2.04;font-size:16px;color:#413633;min-height:0;overflow:visible;max-height:none}
+.libraryReaderView .libraryScrollIntro{font-size:12px;color:#806b5e;margin:8px 0 20px;padding-bottom:13px;border-bottom:1px solid #eee1d6}
+.libraryReadingEnd{display:flex;align-items:center;justify-content:center;gap:12px;margin:30px 0 5px;padding-top:18px;border-top:1px solid #eaddcf;color:#977c6e;font-size:12px;letter-spacing:.12em}
+@media(max-width:700px){
+ .libraryAuthorFilterBar{gap:6px;padding:7px 8px;margin:6px 0}
+ .libraryAuthorFilterBar label{font-size:11px}
+ #libraryAuthorFilter{flex:1 1 145px;font-size:12px;min-width:0;padding:7px 20px 7px 9px}
+ .libraryAuthorFilterHint{display:none}
+ .libraryBookGroup.libraryAuthorSection{padding:7px 6px 9px;margin:8px 0 10px}
+ .libraryAuthorHeading{gap:7px;margin-bottom:7px}
+ .libraryAuthorAvatar{width:25px;height:25px;font-size:13px}
+ .libraryAuthorHeading .libraryHeadingTexts strong{font-size:13px}
+ .libraryAuthorHeading .libraryHeadingTexts small{font-size:10px}
+ .libraryReaderView .libraryContinuousText{font-size:15px;line-height:1.98}
+ .libraryReaderView .libraryScrollIntro{font-size:11px}
+}
+/* Keep the earlier nine-cover first-screen layout on desktop despite author headers. */
+@media(min-width:701px){
+ .libraryBookGroup.libraryAuthorSection .libraryBookCover{min-height:105px;max-height:105px;height:105px}
+}
