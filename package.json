@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.3.0",
+  "version": "14.10.0",
   "private": true,
-  "description": "아마추어 글쓰기 v14 수정판: 기기별 채팅 자동 저장 및 서버 최근 대화 복원",
+  "description": "아마추어 글쓰기 v14.10: 두 방 책장 디자인 통일 및 심리방 원형 테이블 마음 활동 복구",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

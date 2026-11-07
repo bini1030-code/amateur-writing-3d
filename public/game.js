@@ -85,7 +85,7 @@ function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($(
   socket.onopen=()=>send({t:'join',name,code,color:state.color,gender:state.gender});
   socket.onmessage=ev=>{let p;try{p=JSON.parse(ev.data)}catch(e){return}message(p)};
   socket.onerror=()=>joinFail('연결에 문제가 있어요. 서버가 실행 중인지 확인해 주세요.');
-  socket.onclose=()=>{stopAmbient();if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
+  socket.onclose=()=>{if(shelfPending)shelfFailed('연결이 끊겨 책장 저장을 확인하지 못했습니다. 재입장 후 책장을 확인해 주세요.',shelfPending.requestId);stopAmbient();if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
 }
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
@@ -100,13 +100,15 @@ function message(p){
     break;
   }
   case 'shelfBook': receiveLibraryBook(p.book);break;
+  case 'shelfAck': shelfSaved(p);break;
+  case 'shelfError': shelfFailed(p.message,p.requestId);break;
   case 'chat':{receiveChat(p);bubble(p.id,p.text);break;}
   case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
   case 'mood':{const mood={joy:'☀️ 기쁨',sad:'💧 슬픔',anger:'🔥 화',worry:'🌧️ 불안',peace:'🍃 평온',hope:'✨ 기대'}[p.kind];const other=peers.get(p.id);if(mood){toast(p.name+' 님이 오늘의 마음을 나눴어요 · '+mood);if(other)emote('spark',other.x,other.z);playSound('heart')}break;}
 
   case 'reading':showReading(p.reading);if(p.reading){toast(p.reading.mode==='request'?p.reading.name+' 님이 대신 읽기를 부탁했어요.':'함께 낭독하는 시간이 시작됐어요.');playSound('reading')}else toast('낭독을 마쳤어요. 따뜻한 박수를 보내요.');break;
   case 'signal':handleSignal(p.from,p.data);break;
-  case 'error':toast(p.message);joinFail(p.message);break;
+  case 'error':toast(p.message);if(!state.connected)joinFail(p.message);else if(shelfPending)shelfFailed(p.message,shelfPending.requestId);break;
  }
 }
 function renderPeople(){$('#count').textContent=peers.size;$('#peopleCount').textContent=peers.size;
@@ -311,15 +313,16 @@ const solidRects=[
  {x:-3.4,z:7.5,w:1.0,h:.96},{x:-1.5,z:7.5,w:1.0,h:.96},{x:.7,z:7.5,w:1.0,h:.96},{x:2.9,z:7.5,w:1.0,h:.96},
  {x:-3.4,z:2.48,w:1.0,h:.96},{x:-1.5,z:2.48,w:1.0,h:.96},{x:.7,z:2.48,w:1.0,h:.96},{x:2.9,z:2.48,w:1.0,h:.96},
  {x:-5.4,z:4.4,w:.95,h:1.0},{x:4.85,z:4.5,w:.95,h:1.0},
+ {x:-7.85,z:2.40,w:.62,h:2.27}, // unified writing-room bookshelf
  {x:6.95,z:10.15,w:.95,h:.95},{x:-7.65,z:.25,w:.95,h:.95},{x:7.55,z:1.65,w:.92,h:.92},{x:-7.5,z:10.5,w:.80,h:.80},
  // tea room
  {x:-4.6,z:-9.15,w:7.95,h:1.45}, // back counter
  {x:-4.5,z:-5.1,w:3.95,h:1.86}, // standing snack table
  {x:-8.2,z:-2.7,w:.88,h:.88},{x:-4.45,z:-5.0,w:1.25,h:.82},
- // psychology room: eight circle seats, couch and bookshelf; empty meeting center
+ // psychology room: eight circle seats, couch, bookshelf and the central round table
  ...Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return {x:4.5+1.90*Math.cos(a),z:-5.42+1.90*Math.sin(a),w:.66,h:.66}}),
  {x:7.61,z:-7.52,w:1.05,h:1.76}, // couch
- {x:8.24,z:-3.14,w:.55,h:1.76}, // second bookshelf
+ {x:8.24,z:-3.14,w:.62,h:2.27}, // same bookshelf footprint as the writing room
  {x:1.0,z:-3.75,w:.98,h:2.20}, // entry console
  {x:.72,z:-7.6,w:.76,h:.76},{x:.72,z:-3.0,w:.76,h:.76}
  ];
@@ -328,6 +331,8 @@ function traversable(x,z){
  if(x<-8.47||x>8.47||z>11.4||z<-9.45)return false;
  if(z<-1.18&&x>-.33&&x<.33)return false;
  if(z>-1.32&&z<-.68&&!((x>-6.58&&x<-4.62)||(x>4.62&&x<6.58)))return false;
+ // Collision fits the circular table top, rather than blocking an entire square.
+ if(x>.4&&z<-1.4&&Math.hypot(x-4.5,z+5.42)<.82)return false;
  for(const r of solidRects)if(inRect(x,z,r))return false;
  return true;
 }
@@ -392,8 +397,43 @@ const mindSeats=Array.from({length:8},(_,i)=>{
  return {id:'circle-'+i,x,z,rot:Math.atan2(4.5-x,-5.42-z),type:'mind-chair',action:'sit',label:`원형 의자 ${i+1}`};
 });
 const mindCouch={id:'couch',x:7.61,z:-7.52,rot:-Math.PI/2,type:'couch',action:'sit',label:'카우치'};
-// Emotion activity is now at the six faces on the rear wall, NOT a central table.
-function nearEmotionWall(){return actor.z < -8.40 && actor.z > -9.4 && actor.x > 1.55 && actor.x < 7.75;}
+// The six-emotion activity is available from the full circumference of the round table.
+// Visitors can approach from any direction through the gaps between the eight chairs.
+const mindActivityTable={x:4.5,z:-5.42,modelRadius:.69,reachRadius:1.58};
+function nearMindActivityTable(){return Math.hypot(actor.x-mindActivityTable.x,actor.z-mindActivityTable.z)<=mindActivityTable.reachRadius;}
+const faceStories={
+ depression:{name:'우울',emoji:'🌧️',color:'#8ca8c8',tag:'빛이 낮아진 마음',summary:`우울은 마음의 에너지가 낮아지고, 세상이 전보다 무겁게 느껴질 때 나타나는 얼굴입니다.
+기운이 없고 아무것도 하기 싫거나, 평소 좋아하던 일도 멀게 느껴질 수 있어요.
+이 얼굴을 만났을 때는 억지로 밝아지기보다 “나는 지금 많이 지쳐 있구나” 하고 알아차리는 일이 먼저일 수 있습니다.`},
+ anxiety:{name:'불안',emoji:'🌪️',color:'#b19bdd',tag:'조여 오는 걱정의 마음',summary:`불안은 아직 오지 않은 일을 미리 걱정하며 몸과 마음이 긴장하는 얼굴입니다.
+가슴이 답답하거나 생각이 꼬리를 물고 이어지면서, 안전한데도 안전하지 않은 것처럼 느껴질 수 있어요.
+불안을 만났을 때는 미래를 다 해결하려 하기보다, 지금 내가 딛고 있는 한 칸의 바닥을 확인하는 연습이 도움이 됩니다.`},
+ anger:{name:'분노',emoji:'🔥',color:'#d79892',tag:'상처와 경계의 마음',summary:`분노는 내 경계가 침범되었거나 부당함을 느낄 때 튀어나오는 얼굴입니다.
+거칠고 위험해 보이지만, 자세히 보면 “이건 아파”, “이건 싫어”라는 신호가 숨어 있기도 합니다.
+분노를 다룰 때는 폭발을 참는 것만이 아니라, 그 안에 있는 상처와 필요를 함께 읽는 일이 중요합니다.`},
+ addiction:{name:'중독',emoji:'🌀',color:'#d8be84',tag:'자꾸 끌리는 마음',summary:`중독은 멈추고 싶어도 같은 자극과 행동으로 자꾸 돌아가게 되는 얼굴입니다.
+잠깐은 위로처럼 느껴지지만, 시간이 지날수록 내 선택이 좁아지고 삶의 균형이 흔들릴 수 있어요.
+이 얼굴을 바라볼 때는 의지 부족만 탓하기보다, 내가 무엇으로 버티고 있었는지를 같이 살펴보는 태도가 필요합니다.`},
+ madness:{name:'광기',emoji:'⚡',color:'#caa0cf',tag:'과열된 마음의 얼굴',summary:`광기는 생각과 감정이 너무 빠르게 치솟아 스스로도 따라가기 어려운 상태를 가리키는 얼굴입니다.
+과장된 확신, 극단적인 감정, 현실감의 흔들림처럼 보일 수 있어 조심스럽게 다뤄야 합니다.
+이 얼굴은 낭만화하기보다 안전과 돌봄이 먼저라는 점을 기억하며, 필요할 때는 전문적인 도움을 연결하는 것이 중요합니다.`},
+ love:{name:'사랑',emoji:'💗',color:'#e59bb0',tag:'연결과 돌봄의 마음',summary:`사랑은 누군가를 향해 마음이 열리고, 나를 넘어 타인과 이어지고 싶어지는 얼굴입니다.
+따뜻함과 기쁨을 주기도 하지만, 동시에 두려움·집착·상실의 가능성도 함께 데려오곤 합니다.
+그래서 사랑은 달콤함만이 아니라, 서로를 존중하고 돌보는 연습까지 포함하는 넓은 마음의 얼굴입니다.`}
+};
+const faceSpots=[
+ {id:'face-depression',key:'depression',x:1.12,z:-8.83},
+ {id:'face-anxiety',key:'anxiety',x:2.45,z:-8.83},
+ {id:'face-anger',key:'anger',x:3.78,z:-8.83},
+ {id:'face-addiction',key:'addiction',x:5.10,z:-8.83},
+ {id:'face-madness',key:'madness',x:6.43,z:-8.83},
+ {id:'face-love',key:'love',x:7.76,z:-8.83}
+];
+function nearestFaceSpot(){
+ let best=null,dist=Infinity;
+ for(const spot of faceSpots){const d=Math.hypot(actor.x-spot.x,actor.z-spot.z);if(d<.88&&d<dist){best=spot;dist=d;}}
+ return best?{spot:best,distance:dist}:null;
+}
 const wateringPlants=[
  {id:'main-left',x:-7.65,z:.25,room:'main'},
  {id:'main-right',x:7.55,z:1.65,room:'main'},
@@ -404,9 +444,9 @@ const wateringPlants=[
 ];
 const standLamp={x:6.95,z:10.15,room:'main'};
 // The real book spines are on the left wall of the main writing room.
-const bookshelves=[{id:'main-library',x:-7.85,z:2.40,w:.48,h:2.28,room:'main'},{id:'mind-library',x:8.24,z:-3.14,w:.55,h:1.76,room:'mind'}];
+const bookshelves=[{id:'main-library',x:-7.85,z:2.40,w:.62,h:2.27,room:'main'},{id:'mind-library',x:8.24,z:-3.14,w:.62,h:2.27,room:'mind'}];
 const WATERING_CAN_ICON=`<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 20h25l-3 17H13L9 20Z" fill="#9bc0b1" stroke="#f2fff6" stroke-width="2.2" stroke-linejoin="round"/><path d="M34 22c8-1 9 8 2 10h-4" stroke="#e6f6ec" stroke-width="3" stroke-linecap="round"/><path d="M12 20 7 10 2 11" stroke="#d7ede0" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><path d="m9 19 9-9" stroke="#d7ede0" stroke-width="3" stroke-linecap="round"/><path d="M6 6v2m5-4 1 2m-1 4 3 1" stroke="#b5dce8" stroke-width="2.3" stroke-linecap="round"/></svg>`;
-const ICON_LIBRARY={snacks:'🍵',water:WATERING_CAN_ICON,bookshelf:'📚',lamp:'💡',chair:'🪑',stand:'🚶',mind:'💭',lounge:'🛋️', 'mind-chair':'🪑'};
+const ICON_LIBRARY={snacks:'🍵',water:WATERING_CAN_ICON,bookshelf:'📚',lamp:'💡',chair:'🪑',stand:'🚶',mind:'💭',face:'🪞',lounge:'🛋️', 'mind-chair':'🪑'};
 
 function closestWateringPlant(){let best=null,distance=Infinity;for(const plant of wateringPlants){if(plant.room!==state.room)continue;const d=Math.hypot(actor.x-plant.x,actor.z-plant.z);if(d<1.28&&d<distance){best=plant;distance=d}}return best?{...best,distance}:null}
 function offsetByRot(x,z,rot,forward=0,side=0){return {x:x+Math.sin(rot)*forward+Math.cos(rot)*side,z:z+Math.cos(rot)*forward-Math.sin(rot)*side}}
@@ -477,11 +517,16 @@ function nearbyInteraction(){
  }
  if(state.room==='mind'){
   const candidates=[];
+  const faceHit=nearestFaceSpot();
+  if(faceHit){const face=faceStories[faceHit.spot.key];
+   candidates.push({score:faceHit.distance-.7,action:{type:'face',faceKey:faceHit.spot.key,label:`${face.name} 얼굴 이야기 읽기`,detail:`${face.emoji} ${face.tag} · 가까이 다가가 짧은 안내문을 읽어 보세요.`}})}
+  // Table wins over chairs when standing inside the inner activity ring.
+  // The same check drives the hint and the actual interact() action.
+  if(nearMindActivityTable())candidates.push({score:-2,action:{type:'mind',label:'원형 테이블 · 내 마음 알아보기 / 몰라보기',detail:'✦ 테이블 어느 쪽에서든 여섯 얼굴 활동을 시작해요.'}});
   if(plant&&plant.distance<1.22)candidates.push({score:plant.distance,action:{type:'water',plant,label:'식물에 물주기',detail:'물뿌리개로 식물에 물을 줘요.'}});
   const seat=closestMindSeat();
   if(seat){const d=nearestRectDistance(actor.x,actor.z,seat.x,seat.z,seat.type==='couch'?1.05:.66,seat.type==='couch'?1.76:.66);
    candidates.push({score:d,action:{type:'lounge',spot:seat,label:seat.type==='couch'?'카우치에 앉기':'원형 의자에 앉기',detail:seat.type==='couch'?'카우치에 앉아 편안하게 이야기를 나눠요.':'여덟 사람이 둥글게 모이는 의자예요.'}})}
-  if(nearEmotionWall())candidates.push({score:-.15,action:{type:'mind',label:'여섯 감정으로 마음 알아보기',detail:'감정 그림 앞에서 마음 알아보기 · 몰라보기를 선택해요.'}});
   for(const shelf of bookshelves.filter(x=>x.room==='mind')){
    const d=nearestRectDistance(actor.x,actor.z,shelf.x,shelf.z,shelf.w,shelf.h);
    if(d<.9)candidates.push({score:d,action:{type:'bookshelf',label:'우리 글이 담긴 책장',detail:'📚 모임원들이 쓴 글을 읽거나 내 글을 꽂아요.'}});
@@ -512,7 +557,7 @@ function updateProximityHint(){
   const icon=$('#proximityIcon');icon.innerHTML=ICON_LIBRARY[action.type]||'✦';
   const chips=$('#proximityChoices');chips.textContent='';
   const choices=action.type==='snacks'?[['🍵','차 마시기'],['🍪','과자 먹기'],['🍬','젤리 먹기']]:
-    action.type==='water'?[['🪴','화분에 물주기']]:action.type==='bookshelf'?[['📚','우리 글 읽기 · 꽂기']]:[];
+    action.type==='water'?[['🪴','화분에 물주기']]:action.type==='bookshelf'?[['📚','우리 글 읽기 · 꽂기']]:action.type==='mind'?[['💭','내 마음 알아보기'],['☾','내 마음 몰라보기']]:action.type==='face'?[['🪞','얼굴 이야기 읽기']]:[];
   for(const [emoji,title] of choices){const chip=document.createElement('span');chip.className='proximityChoice';
    const art=document.createElement('span');art.textContent=emoji;const text=document.createElement('span');text.textContent=title;
    chip.append(art,text);chips.append(chip)}
@@ -522,8 +567,10 @@ function updateProximityHint(){
  hint.hidden=false;
 }
 
-// V14.8: one shared collection visible at BOTH bookshelves, with device-side backup.
+// V14.9: reliable shared bookshelf. Server acknowledgement is authoritative;
+// draft text is always kept locally and is never published automatically.
 const libraryState={open:false,id:null,page:0,books:[],publishedIds:new Set(),room:''};
+let shelfPending=null,shelfTimer=null;
 const libraryCacheKey=code=>'amateur-writing-shelf-v1-'+code;
 function sanitizeShelfBook(b){
  if(!b||typeof b.id!=='string'||typeof b.title!=='string'||typeof b.text!=='string'||typeof b.author!=='string')return null;
@@ -532,6 +579,16 @@ function sanitizeShelfBook(b){
 function cacheLibrary(){
  try{localStorage.setItem(libraryCacheKey(state.code),JSON.stringify(libraryState.books.slice(-64)))}catch(e){}
 }
+function shelfFeedback(text,kind='info'){
+ const el=$('#libraryFeedback');if(el){el.textContent=text;el.dataset.kind=kind;}
+ if(kind==='error'||kind==='success')toast(text);
+}
+function shelfBusy(busy){
+ const save=$('#librarySave');if(save)save.disabled=busy||!state.connected||!state.story.trim();
+ if(save)save.textContent=busy?'📚 책장에 저장하는 중…':'📚 내 글 책장에 꽂기';
+ $$('[data-action="shelf"]').forEach(el=>{el.disabled=busy;});
+}
+function clearShelfPending(){if(shelfTimer){clearTimeout(shelfTimer);shelfTimer=null;}shelfPending=null;shelfBusy(false)}
 function syncLibrary(code,serverBooks){
  libraryState.room=code;
  let local=[];try{local=JSON.parse(localStorage.getItem(libraryCacheKey(code))||'[]')}catch(e){}
@@ -550,17 +607,50 @@ function receiveLibraryBook(raw){
  const existing=libraryState.books.findIndex(b=>b.id===book.id);
  if(existing<0)libraryState.books.push(book);else libraryState.books[existing]=book;
  libraryState.books=libraryState.books.sort((a,b)=>a.createdAt-b.createdAt).slice(-64);
- libraryState.id=book.id;libraryState.page=0;cacheLibrary();refreshLibraryBook();
- toast(`${book.author} 님의 글 『${book.title}』이 책장에 꽂혔어요.`);
- if(libraryState.open)playSound('reading');
+ // Don't tear another reader away from the current page just because somebody published.
+ if(!libraryState.id)libraryState.id=book.id;
+ cacheLibrary();refreshLibraryBook();
+ if(existing<0)toast(`${book.author} 님의 글 『${book.title}』이 책장에 추가됐어요.`);
+}
+function shelfSaved(reply){
+ const book=sanitizeShelfBook(reply?.book);
+ if(!book)return;
+ const own=!!shelfPending&&(reply.requestId===shelfPending.requestId);
+ // Handles a slow/stale response safely, without mutating a different room.
+ receiveLibraryBook(book);
+ if(!own)return;
+ libraryState.id=book.id;libraryState.page=0;
+ clearShelfPending();refreshLibraryBook();
+ shelfFeedback(`『${book.title}』을(를) 책장에 저장했어요. 다른 멤버도 읽을 수 있습니다.`,'success');
+ playSound('reading');
+}
+function shelfFailed(text,requestId){
+ if(requestId&&(!shelfPending||requestId!==shelfPending.requestId))return;
+ clearShelfPending();
+ shelfFeedback(text||'책장 저장에 실패했습니다. 글은 이 기기에 남아 있으니 다시 시도해 주세요.','error');
 }
 function publishToShelf(book=null){
- if(!state.connected){toast('먼저 모임방에 접속해 주세요.');return}
- const text=(book?book.text:state.story).trim(),title=(book?book.title:state.title).trim()||'제목 없는 글';
- if(!text){toast('글을 먼저 작성한 뒤 책장에 꽂아 주세요.');setStep(2);return}
- if(text.length>10000){toast('책장에는 1만 글자까지 저장할 수 있어요.');return}
- if(!confirm(`『${title}』을(를) 이 모임방의 모든 참가자가 볼 수 있는 책장에 꽂을까요?`))return;
- send({t:'shelfAdd',title,text});
+ if(!state.connected){shelfFeedback('먼저 모임방에 접속해 주세요.','error');return}
+ if(shelfPending){shelfFeedback('이미 저장 중입니다. 완료 안내를 확인해 주세요.','loading');return}
+ // The editor may still have the newest text (IME composition/mobile keyboard).
+ const currentText=book?book.text:($('#story')?.value??state.story);
+ const currentTitle=book?book.title:($('#storyTitle')?.value??state.title);
+ const body=String(currentText||'').trim(),title=String(currentTitle||'').trim().slice(0,80)||'제목 없는 글';
+ if(!body){shelfFeedback('글을 먼저 작성한 뒤 책장에 꽂아 주세요.','error');setStep(2);return}
+ if(body.length>10000){shelfFeedback('책장에는 최대 1만 글자까지 등록할 수 있어요.','error');return}
+ const requestId='book-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12);
+ const payload={t:'shelfAdd',requestId,title,text:body};
+ const byteCount=new TextEncoder().encode(JSON.stringify(payload)).length;
+ if(byteCount>30000){shelfFeedback('한 번에 보낼 수 있는 용량을 초과했습니다. 글을 두 부분으로 나누어 등록해 주세요.','error');return}
+ if(!confirm(`『${title}』을(를) 이 모임방의 모든 참가자가 읽는 책장에 공개할까요?`))return;
+ // Keep the draft on this device even if the network fails after confirmation.
+ if(!book){state.story=body;state.title=title;persist()}
+ if(!socket||socket.readyState!==WebSocket.OPEN){shelfFeedback('서버 연결이 끊어졌어요. 재입장한 뒤 등록해 주세요.','error');return}
+ shelfPending={requestId,title};shelfBusy(true);shelfFeedback(`『${title}』 저장을 요청했습니다. 서버 확인을 기다리고 있어요.`,'loading');
+ try{socket.send(JSON.stringify(payload))}catch(e){shelfFailed('전송에 실패했습니다. 작성한 글은 이 기기에 남아 있어요.',requestId);return}
+ shelfTimer=setTimeout(()=>{
+   if(shelfPending?.requestId===requestId)shelfFailed('서버에서 저장 확인이 오지 않았습니다. 책장을 확인한 다음 다시 시도해 주세요.',requestId);
+ },12000);
 }
 function refreshLibraryBook(){
  const holder=$('#libraryChoices');if(!holder)return;
@@ -585,7 +675,7 @@ function refreshLibraryBook(){
  $('#libraryProgress').textContent=b?`${libraryState.page+1} / ${pages.length}쪽`:'0권';
  $('#libraryPrev').disabled=!b||libraryState.page===0;
  $('#libraryNext').disabled=!b||libraryState.page>=pages.length-1;
- $('#librarySave').disabled=!state.story.trim()||!state.connected;
+ shelfBusy(!!shelfPending);
  $('#libraryRestore').hidden=!b||libraryState.publishedIds.has(b.id);
  $('#libraryNote').textContent=b&&!libraryState.publishedIds.has(b.id)?'이 책은 현재 이 기기에만 남아 있어요. 다른 참가자에게 보이게 하려면 다시 꽂아 주세요.':'저장된 책은 같은 모임방의 참가자가 두 책장 어디에서나 읽을 수 있어요.';
 }
@@ -608,7 +698,7 @@ function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요'
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
  lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='mind'?'#d1b4fa':'#ffd6ae',160);
 }
-function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind')hideMindModal();if(zone!=='main'&&zone!=='mind')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','여덟 자리에 둥글게 앉아 서로의 마음을 나누는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
+function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind'){hideMindModal();hideFaceInfo()}if(zone!=='main'&&zone!=='mind')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','여덟 자리에 둥글게 앉아 서로의 마음을 나누는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){let best=null,dist=1e9;for(const p of chairSeats){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<1.21?best:null}
 function sit(){if(state.sitting||actor.action==='lie'){standUp();return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;state.restSpot={...p,type:'chair'};route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
@@ -624,9 +714,9 @@ $('#snackMenuClose').onclick=hideSnackMenu;
 $('#snackMenu').addEventListener('click',e=>{if(e.target.id==='snackMenu')hideSnackMenu();const button=e.target.closest('[data-snack]');if(button)eatSnack(button.dataset.snack)});
 
 // Six faces of the heart. Reflection activity is personal; it never travels over WebSocket.
-const emotions={joy:{name:'기쁨',color:'#f7c16f'},sad:{name:'슬픔',color:'#8bb6d5'},anger:{name:'화',color:'#d99a94'},worry:{name:'불안',color:'#ad9bda'},peace:{name:'평온',color:'#98bfa9'},hope:{name:'기대',color:'#e5cc83'}};
+const emotions={depression:{name:'우울',color:'#8ca8c8'},anxiety:{name:'불안',color:'#b19bdd'},anger:{name:'분노',color:'#d79892'},addiction:{name:'중독',color:'#d8be84'},madness:{name:'광기',color:'#caa0cf'},love:{name:'사랑',color:'#e59bb0'}};
 const mindQuestions=[
- '지금 마음에 창문이 있다면, 밖에는 어떤 풍경이 보일까요?',
+ '지금 내 마음은 여섯 얼굴 중 어느 얼굴에 가장 가까운가요?',
  '내 마음이 날씨라면 오늘은 어떤 하늘일까요?',
  '오늘 하루에서 오래 남은 소리는 무엇이었나요?',
  '말이 되지 않는 기분을 색깔 하나로 표현한다면?',
@@ -647,7 +737,7 @@ function mindRecord(){if(!mindMood){toast('오늘 마음에 가장 가까운 얼
  toast('이 마음은 내 기기에만 간직했어요.');return record;
 }
 $('#mindSave').onclick=()=>{const r=mindRecord();if(r)playSound('heart')};
-$('#mindShare').onclick=()=>{if(!mindMood){toast('먼저 나누고 싶은 감정 얼굴을 골라 주세요.');return;}send({t:'mood',kind:mindMood});playSound('heart');lightPulse(actor.x,actor.z,emotions[mindMood].color,150);toast('오늘의 감정 이름만 다른 참가자에게 나눴어요. 개인 기록은 전송되지 않아요.');};
+$('#mindShare').onclick=()=>{if(!mindMood){toast('먼저 나누고 싶은 마음의 얼굴을 골라 주세요.');return;}send({t:'mood',kind:mindMood});playSound('heart');lightPulse(actor.x,actor.z,emotions[mindMood].color,150);toast('오늘 고른 마음의 얼굴 이름만 다른 참가자에게 나눴어요. 개인 기록은 전송되지 않아요.');};
 $('#mindWrite').onclick=()=>{const r=mindRecord();if(!r)return;
  state.topic='지금 내 마음 — '+emotions[r.mood].name;
  state.notes=[state.notes.trim(),`${r.day} / 나의 마음: ${emotions[r.mood].name}`,r.cause?'떠오르는 순간: '+r.cause:'',r.need?'내게 필요한 말: '+r.need:''].filter(Boolean).join('\n');persist();
@@ -655,6 +745,23 @@ $('#mindWrite').onclick=()=>{const r=mindRecord();if(!r)return;
 };
 $('#mindShuffle').onclick=()=>{mindPromptIndex=(mindPromptIndex+1+Math.floor(Math.random()*(mindQuestions.length-1)))%mindQuestions.length;$('#mindPrompt').textContent=mindQuestions[mindPromptIndex];playSound('spark')};
 $('#mindUnknownWrite').onclick=()=>{state.topic='아직 이름 없는 마음';state.notes=[state.notes.trim(),mindQuestions[mindPromptIndex]].filter(Boolean).join('\n');persist();setStep(2);hideMindModal();openMobilePanel('write');setTab('write');toast('마음 질문이 나의 글감으로 옮겨졌어요.')};
+let currentFaceKey='';
+function showFaceInfo(faceKey){
+ const face=faceStories[faceKey]; if(!face)return;
+ currentFaceKey=faceKey; hideMindModal(); hideSnackMenu(); closeLibrary(); closeMobilePanel();
+ $('#faceInfoHeading').textContent=face.name+'의 얼굴';
+ $('#faceInfoLead').textContent='이 얼굴을 천천히 읽고, 지금의 마음과 닿는 부분이 있는지 살펴보세요.';
+ $('#faceInfoEmoji').textContent=face.emoji;
+ $('#faceInfoTitle').textContent=face.name;
+ $('#faceInfoTag').textContent=face.tag;
+ $('#faceInfoText').textContent=face.summary;
+ const el=$('#faceInfoModal'); el.classList.remove('hidden'); el.setAttribute('aria-hidden','false');
+ playSound('spark'); lightPulse(actor.x,actor.z,face.color,170);
+}
+function hideFaceInfo(){const el=$('#faceInfoModal'); if(!el)return; el.classList.add('hidden'); el.setAttribute('aria-hidden','true');}
+$('#faceInfoClose').onclick=hideFaceInfo;
+$('#faceInfoModal').addEventListener('click',e=>{if(e.target.id==='faceInfoModal')hideFaceInfo()});
+$('#faceInfoToWrite').onclick=()=>{const face=faceStories[currentFaceKey]; if(!face)return; state.topic='여섯 얼굴 — '+face.name; state.notes=[state.notes.trim(),`[${face.name}]`,face.summary.split('\n')[0]].filter(Boolean).join('\n'); persist(); setStep(2); hideFaceInfo(); openMobilePanel('write'); setTab('write'); toast(face.name+'에 대한 생각이 글감으로 옮겨졌어요.');};
 function interact(){
  const choice=nearbyInteraction();
  if(!choice){toast('가구 가까이 가면 가능한 상호작용이 나타나요.');return}
@@ -664,13 +771,14 @@ function interact(){
  if(choice.type==='bookshelf'){openLibrary();return}
  if(choice.type==='lounge'){useMindLounge(choice.spot);return}
  if(choice.type==='mind'){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);return}
+ if(choice.type==='face'){showFaceInfo(choice.faceKey);return}
  if(choice.type==='water'){send({t:'scene',action:'water',plant:choice.plant.id});return}
  if(choice.type==='lamp'){send({t:'scene',action:'lamp'});return}
 }
 
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#libraryModal').classList.contains('hidden'))closeLibrary();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#libraryModal').classList.contains('hidden'))closeLibrary();else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAmbient();else startAmbient()});
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}

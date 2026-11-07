@@ -280,3 +280,21 @@
 .libraryChoices button{max-width:100%;text-align:left;overflow-wrap:anywhere;line-height:1.45}
 .libraryBookAuthor{margin-bottom:16px}
 @media(max-width:700px){.libraryPublish{padding:11px}.libraryPublish button{width:100%}.libraryChoices{max-height:122px}}
+
+/* v14.9: inline confirmation/error feedback for bookshelf publishing */
+.libraryFeedback{font-size:.83rem;margin:0 0 .85rem;padding:.55rem .75rem;line-height:1.6;color:#e6dbce;background:rgba(232,216,195,.08);border-radius:.55rem;}
+.libraryFeedback[data-kind="success"]{color:#d7eedb;background:rgba(142,197,159,.13)}
+.libraryFeedback[data-kind="error"]{color:#ffe1d9;background:rgba(206,114,107,.15)}
+.libraryFeedback[data-kind="loading"]{color:#fff0c4;background:rgba(235,191,109,.13)}
+#librarySave:disabled,[data-action="shelf"]:disabled{opacity:.5;cursor:wait}
+
+
+/* V14.11: readable six-face info cards */
+.faceInfoCard{max-width:700px}
+.faceInfoHero{display:flex;align-items:center;gap:14px;padding:14px 16px;margin:18px 0 12px;border-radius:18px;background:linear-gradient(160deg,#f1e8f8,#fffaf6);border:1px solid #e7d8eb}
+.faceInfoHero span{font-size:40px;line-height:1}
+.faceInfoHero strong{display:block;font:700 24px/1.3 'Noto Serif KR',serif;color:#503f58}
+.faceInfoHero small{display:block;margin-top:3px;font-size:11px;color:#917f98}
+.faceInfoBody{border-radius:18px;background:#fffefd;border:1px solid #e6dde8;padding:16px 18px;color:#5a4b60;font-size:14px;line-height:1.95}
+.faceInfoBody p{margin:0;white-space:pre-line}
+@media(max-width:700px){.faceInfoHero{padding:12px 13px;border-radius:16px}.faceInfoHero span{font-size:34px}.faceInfoHero strong{font-size:22px}.faceInfoBody{padding:13px 14px;font-size:13px;line-height:1.85}}

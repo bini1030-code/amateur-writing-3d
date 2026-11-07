@@ -123,20 +123,29 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       broadcast(room,{t:'mood',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
     case 'shelfAdd':{
-      if(!rate(c,'shelfAdd',1600))return;
+      // Acknowledgments are explicit: the browser never calls a book 'published'
+      // before it is actually committed to the server-side collection.
+      const requestId=typeof msg.requestId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(msg.requestId)?msg.requestId:'';
+      const fail=message=>send(c,{t:'shelfError',requestId,message});
+      const prior=requestId&&room.books.find(b=>b.requestId===requestId);
+      if(prior){send(c,{t:'shelfAck',requestId,book:prior});return}
+      if(!rate(c,'shelfAdd',1200)){fail('등록 요청을 처리하는 중이에요. 잠시 후 다시 눌러 주세요.');return}
       const title=safeStr(msg.title,80)||'제목 없는 글';
       const text=safeStr(msg.text,10000);
-      if(!text){send(c,{t:'error',message:'책장에 꽂을 글을 먼저 작성해 주세요.'});return}
-      if(room.books.length>=BOOKSHELF_LIMIT){send(c,{t:'error',message:'이 모임방의 책장이 가득 찼어요(64권).'});return}
-      const entry={id:crypto.randomUUID(),title,text,author:c.name,createdAt:Date.now()};
+      const byteLength=Buffer.byteLength(JSON.stringify({t:'shelfAdd',requestId,title,text}),'utf8');
+      if(!text){fail('책장에 꽂을 글을 먼저 작성해 주세요.');return}
+      if(typeof msg.text!=='string'||msg.text.trim().length>10000||byteLength>30000){fail('글이 한 번에 전송할 수 있는 크기를 넘었어요. 글을 나누어 저장해 주세요.');return}
+      if(room.books.length>=BOOKSHELF_LIMIT){fail('이 모임방의 책장이 가득 찼어요(64권).');return}
+      const entry={id:crypto.randomUUID(),title,text,author:c.name,createdAt:Date.now(),...(requestId?{requestId}:{})};
       const next=[...room.books,entry];
       savedBooks.set(room.code,next);
       try{persistBooks()}catch(e){
         savedBooks.set(room.code,room.books);
         console.error('책장 저장 실패:',e.message);
-        send(c,{t:'error',message:'서버에 책을 저장하지 못했어요. 서버 저장 공간을 확인해 주세요.'});return;
+        fail('서버에 책을 저장하지 못했습니다. 관리자가 저장 공간을 확인해야 해요. 작성한 글은 이 기기에 그대로 남아 있습니다.');return;
       }
       room.books=next;
+      send(c,{t:'shelfAck',requestId,book:entry});
       broadcast(room,{t:'shelfBook',book:entry});
       break;
     }

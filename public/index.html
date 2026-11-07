@@ -43,6 +43,7 @@
           <span>✍️ 지금 작성 중인 내 글을 한 권의 책으로 보관하기</span>
           <button id="librarySave" type="button">📚 내 글 책장에 꽂기</button>
         </div>
+        <p id="libraryFeedback" class="libraryFeedback" role="status" aria-live="polite">글은 서버 저장이 완료된 뒤 책장에 나타납니다.</p>
         <article class="libraryPaper">
           <div class="libraryPaperTop">✦ &nbsp; 아마추어 글쓰기 · 우리 모임의 이야기</div>
           <h3 id="libraryBookTitle">첫 번째 책을 기다려요</h3><p id="libraryAuthor" class="libraryBookAuthor">아마추어 글쓰기 · 우리 모임의 책장</p>
@@ -59,19 +60,19 @@
     <section id="mindModal" class="mindOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="mindHeading">
       <div class="mindCard">
         <header class="mindHeader"><div><span class="mindKicker">SIX FACES OF THE HEART · 마음을 비춰보는 공간</span>
-          <h2 id="mindHeading">내 마음은 왜 여섯 얼굴일까?</h2><p>여섯 감정은 정답이 아니라 마음을 들여다보는 여섯 개의 창문이에요.</p></div>
+          <h2 id="mindHeading">내 마음은 왜 여섯 얼굴일까?</h2><p>여섯 얼굴은 정답이 아니라 마음을 들여다보는 여섯 개의 창문이에요.</p></div>
           <button type="button" id="mindClose" aria-label="마음 탐색 닫기">✕</button>
         </header>
         <div class="mindTabs"><button type="button" data-mind-tab="recognize" class="chosen">✦ 내 마음 알아보기</button><button type="button" data-mind-tab="unknown">☾ 내 마음 몰라보기</button></div>
         <div id="mindRecognize" class="mindSection">
           <p class="mindQuestion">지금 가장 가까운 마음은 무엇인가요?</p>
           <div class="moodGrid" id="moodGrid" role="group" aria-label="마음 여섯 가지 중 선택">
-            <button type="button" data-mood="joy"><span>☀️</span><strong>기쁨</strong><small>좋은 일에 마음이 환해질 때</small></button>
-            <button type="button" data-mood="sad"><span>💧</span><strong>슬픔</strong><small>무언가 소중해서 아쉬울 때</small></button>
-            <button type="button" data-mood="anger"><span>🔥</span><strong>화</strong><small>내 경계가 건드려진 것 같을 때</small></button>
-            <button type="button" data-mood="worry"><span>🌧️</span><strong>불안</strong><small>앞일을 알 수 없어 조마조마할 때</small></button>
-            <button type="button" data-mood="peace"><span>🍃</span><strong>평온</strong><small>숨을 고르며 잠시 쉬고 싶을 때</small></button>
-            <button type="button" data-mood="hope"><span>✨</span><strong>기대</strong><small>아직 오지 않은 일을 기다릴 때</small></button>
+            <button type="button" data-mood="depression"><span>🌧️</span><strong>우울</strong><small>마음의 빛이 낮아지고 가라앉을 때</small></button>
+            <button type="button" data-mood="anxiety"><span>🌪️</span><strong>불안</strong><small>앞일을 몰라 몸과 마음이 조여 올 때</small></button>
+            <button type="button" data-mood="anger"><span>🔥</span><strong>분노</strong><small>상처받거나 부당하다고 느껴질 때</small></button>
+            <button type="button" data-mood="addiction"><span>🌀</span><strong>중독</strong><small>멈추고 싶어도 자꾸 끌릴 때</small></button>
+            <button type="button" data-mood="madness"><span>⚡</span><strong>광기</strong><small>생각과 감정이 너무 빠르게 치솟을 때</small></button>
+            <button type="button" data-mood="love"><span>💗</span><strong>사랑</strong><small>누군가를 향해 마음이 열리고 이어질 때</small></button>
           </div>
           <label class="mindLabel" for="mindCause">그 감정이 찾아온 순간이 있었나요? <small>선택 사항</small></label>
           <textarea id="mindCause" maxlength="600" rows="2" placeholder="지금 떠오르는 장면을 한두 문장으로 적어 보세요."></textarea>
@@ -86,6 +87,20 @@
           <blockquote id="mindPrompt">지금 마음에 창문이 있다면, 밖에는 어떤 풍경이 보일까요?</blockquote>
           <div class="mindFooter"><span>진단이나 심리 검사가 아닌, 자유로운 글쓰기 질문이에요.</span><button type="button" id="mindShuffle">↻ 다른 질문</button><button type="button" class="mindPrimary" id="mindUnknownWrite">이 질문으로 글 시작하기 ↗</button></div>
         </div>
+      </div>
+    </section>
+
+    <section id="faceInfoModal" class="mindOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="faceInfoHeading">
+      <div class="mindCard faceInfoCard">
+        <header class="mindHeader"><div><span class="mindKicker">SIX FACES · 얼굴 하나를 천천히 읽기</span>
+          <h2 id="faceInfoHeading">여섯 가지 얼굴</h2><p id="faceInfoLead">지금 마주한 얼굴에 대한 짧은 이야기를 읽어 보세요.</p></div>
+          <button type="button" id="faceInfoClose" aria-label="얼굴 이야기 닫기">✕</button>
+        </header>
+        <div class="faceInfoHero"><span id="faceInfoEmoji" aria-hidden="true">🌧️</span><div><strong id="faceInfoTitle">우울</strong><small id="faceInfoTag">여섯 가지 얼굴 중 하나</small></div></div>
+        <article class="faceInfoBody">
+          <p id="faceInfoText">마음의 얼굴에 대한 설명이 여기에 표시됩니다.</p>
+        </article>
+        <div class="mindFooter"><span>이 읽기는 진단이 아니라, 마음을 천천히 바라보는 짧은 안내문입니다.</span><button type="button" id="faceInfoToWrite" class="mindPrimary">이 얼굴로 글 시작하기 ↗</button></div>
       </div>
     </section>
 <!-- V6: each participant controls their own book; the 3D world stays visible. -->

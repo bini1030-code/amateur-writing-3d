@@ -120,10 +120,20 @@ for(let i=0;i<4;i++)C(-6.8+i*.38,1.43,-9.08,.16,.24,['#e6d0aa','#a9c5ba','#e3baa
 C(-3.9,1.34,-9.1,.44,.36,'#d8c0a7');S(-3.9,1.69,-9.1,.23,'#ecdabb',10,6);C(-2.5,1.45,-9.1,.17,.33,'#a07c65');
 B(-4.45,1.3,-5.0,1.1,.06,.65,'#eee2ce');C(-4.5,1.47,-5,.14,.25,'#f6ede2');C(-4.1,1.47,-5.25,.14,.25,'#e5d4be');
 plant(-8.2,-2.7,.9);B(-7.15,2.1,-.76,.88,.9,.09,'#826953');
-// V14.8 - eight-seat round support circle. The center has NO table.
+// V14.10 - eight-seat support circle restored around a small activity table.
 B(4.5,.035,-5.48,7.65,.045,7.3,'#3c365b');
 C(4.5,.075,-5.42,2.75,.025,'#675675',36);
 C(4.5,.090,-5.42,2.32,.016,'#7d6b8c',36);
+// Round reflection activity table: low central column and a proper round top.
+// Its entire perimeter opens the existing "내 마음 알아보기 / 몰라보기" dialog.
+C(4.5,.41,-5.42,.31,.72,'#8f7a80',26);
+C(4.5,.73,-5.42,.48,.07,'#ad9394',26);
+C(4.5,.79,-5.42,.69,.11,'#bda1a2',36);
+C(4.5,.856,-5.42,.66,.035,'#e3cbc0',36);
+// A little journal and pencil make the activity easy to recognize visually.
+B(4.5,.895,-5.42,.35,.018,.28,'#f7eee2',-.13);
+B(4.48,.908,-5.42,.014,.02,.21,'#c2a493',-.13);
+B(4.74,.910,-5.56,.018,.016,.26,'#a17e70',.55);
 // Eight slim folding-style metal chairs with fabric seats, all facing inward.
 function supportChair(x,z,rot){
  const co=Math.cos(rot),si=Math.sin(rot),at=(dx,dz)=>[x+dx*co+dz*si,z-dx*si+dz*co];
@@ -165,23 +175,36 @@ for(const x of [1.0,3.2,5.4,7.6]){C(x,3.54,-9.48,.03,.42,'#a588a0');S(x,3.30,-9.
 for(const z of [-3.2,-5.6,-7.8]){B(8.75,1.9,z,.10,2.6,1.32,'#554768');B(8.67,2.24,z,.11,1.2,.67,'#817399');S(8.58,2.73,z,.13,'#d9c9ef',9,6)}
 B(1.0,.78,-3.75,.53,1.24,1.8,'#67556c');B(1.0,1.47,-3.75,.81,.10,2.05,'#9c8397');
 for(const z of [-7.6,-3.0]){C(.72,.35,z,.28,.55,'#756070');for(let i=0;i<5;i++)S(.72+Math.cos(i*1.25)*.22,.87+(i%2)*.18,z+Math.sin(i*1.25)*.23,.20,'#69877b',8,6)}
-// Added bookshelf on the right wall, facing the participants.
-B(8.24,1.37,-3.14,.52,2.55,1.67,'#8b7183');
-for(let j=0;j<3;j++){
- const y=.46+j*.73;
- B(8.15,y,-3.14,.62,.085,1.71,'#c6a6a1');
- for(let k=0;k<7;k++){
-  const z=-3.85+k*.23;
-  B(8.07,y+.29,z,.24,.43+(k%3)*.05,.14,['#e6c9ab','#9cabb2','#b8a0b9','#c6b09d'][k%4]);
- }
-}
-
 // V3 bespoke interior details: in-world art, book spines, warm fixtures, layered textiles.
 function picture(x,y,z,w,h,frame,inside){B(x,y,z,w+.13,h+.13,.065,frame);B(x,y,z+.039,w,h,.018,inside)}
 // Main room: framed prints, shelves, stationery and layered cushions.
 picture(-6.65,2.25,-.78,1.1,.8,'#8d6a58','#b6b2a1');
-for(let j=0;j<3;j++){B(-7.85,1.45+j*.68,2.4,.44,.085,2.25,'#846b51');for(let k=0;k<8;k++){
- const zz=1.45+k*.245;B(-7.78,1.68+j*.68,zz,.13,.29,.14,['#9ca9a0','#9b726d','#bdaf98','#7b8c91'][k%4]);}}
+// Both rooms use exactly the same oak bookshelf mesh. Only its facing is mirrored.
+// The model is 2.25 wide (along z) and 2.64 high, with four horizontal shelves.
+function sharedBookshelf(x,z,facing){
+ const walnut='#846a5f',edge='#aa8c7a',shelf='#c6a895';
+ B(x,1.32,z,.60,2.64,2.26,walnut);
+ B(x+facing*.19,1.32,z,.11,2.44,2.06,'#65534f'); // recessed dark back
+ // Uprights and top/bottom trim are identical in both rooms.
+ for(const zz of [-1.10,1.10]){
+  B(x+facing*.26,1.36,z+zz,.16,2.69,.10,edge);
+  B(x,1.35,z+zz,.62,2.67,.08,walnut);
+ }
+ for(const yy of [.27,.85,1.43,2.01,2.59]){
+  B(x+facing*.29,yy,z,.16,.09,2.27,shelf);
+  B(x+facing*.38,yy+.025,z,.035,.055,2.22,'#e4c6a5');
+ }
+ const spines=['#d0b59f','#a9b9b8','#bca6b9','#c3ac96','#8e9c91','#d0a99b'];
+ for(let row=0;row<4;row++)for(let i=0;i<10;i++){
+  const zz=z-0.94+i*.208,yy=.32+row*.58;
+  const hh=.40+(i%4)*.025;
+  B(x+facing*.37,yy+hh/2,zz,.115,hh,.15,spines[(i+row)%spines.length]);
+  if((i+row)%3===0)B(x+facing*.435,yy+hh*.68,zz,.015,.013,.10,'#ead6bd');
+ }
+ B(x+facing*.29,2.70,z,.19,.12,2.36,walnut);
+}
+sharedBookshelf(-7.85,2.40,1); // writing room, facing right
+sharedBookshelf(8.24,-3.14,-1); // psychology room, facing left
 for(const [x,z] of [[-3.4,7.55],[-1.5,7.55],[.7,7.55],[2.9,7.55],[-3.4,2.5],[-1.5,2.5],[.7,2.5],[2.9,2.5]]){
  B(x,.56,z,.71,.095,.69,'#d3b59b');B(x,.61,z,.6,.017,.58,'#e6cdb7');}
 for(const [x,z] of [[-2.9,3.98],[-.6,4.0],[1.7,4.05],[-2.6,6.0],[.2,6.05],[2.45,6.0]]){
