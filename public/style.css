@@ -414,3 +414,24 @@
 .libraryEditActions #libraryEditSave{background:#6e587d;border-color:#6e587d;color:#fff}
 #libraryActionFeedback.libraryFeedback{margin-top:12px;margin-bottom:4px}
 @media(max-width:700px){.libraryOwnerActions{padding:10px;gap:6px}.libraryOwnerActions span{flex:1 1 100%}.libraryOwnerActions button{flex:1}.libraryEditor{padding:12px}.libraryEditActions button{flex:1;font-size:11px}}
+
+/* v14.16: ownership guidance and live reaction icons anchored over avatar heads. */
+.libraryOwnerHelp{flex:1 1 100%;margin:3px 0 0;padding:9px 11px;border-radius:8px;font-size:12px;line-height:1.65;background:#f6f0de;color:#514222;border:1px solid #d6b976}
+.libraryOwnerHelp[data-kind="success"]{background:#eaf7ef;color:#185532;border-color:#97c4a8}
+.overheadReaction{position:absolute;display:grid;place-items:center;transform:translate(-50%,-100%);min-width:49px;min-height:49px;padding:7px;border:2px solid #ffe2b8;background:rgba(43,30,47,.94);box-shadow:0 0 22px #ffe5bb80,0 8px 24px #090619b3;border-radius:17px;z-index:12;pointer-events:none;font-size:30px;line-height:1.05;animation:reactionHeadFade 1.7s ease-out both}
+.overheadReaction:after{content:"";position:absolute;bottom:-9px;left:50%;transform:translateX(-50%) rotate(45deg);width:12px;height:12px;background:rgba(43,30,47,.94);border-right:2px solid #ffe2b8;border-bottom:2px solid #ffe2b8}
+@keyframes reactionHeadFade{0%{opacity:0;scale:.8}12%{opacity:1;scale:1}76%{opacity:1;scale:1}100%{opacity:0;scale:.9}}
+@media(max-width:700px){.overheadReaction{min-width:43px;min-height:43px;font-size:26px;border-radius:13px}.libraryOwnerHelp{font-size:11px}}
+
+/* V14.17 — Show shared books and editable unpublished writing separately. */
+.libraryChoices.libraryBookGrid{display:block;max-height:min(51dvh,520px);overflow:auto;padding:5px 5px 15px}
+.libraryBookGroup{margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #dbc8bf}
+.libraryGroupHeading{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin:6px 0 12px;color:#513e43}
+.libraryGroupHeading strong{font-size:14px;font-weight:850}
+.libraryGroupHeading small{font-size:10px;color:#75606b;line-height:1.7}
+.libraryBookTiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:14px;align-items:start}
+.libraryBookCover.private-cover{background:linear-gradient(150deg,#eae1d2,#c1a8a1);border-color:#997f7d;color:#49343f}
+.libraryBookCover.private-cover .libraryCoverBottom{color:#50373a;font-weight:850}
+#libraryRestore:not([hidden]){display:block;width:100%;margin:12px 0;border:1px solid #6e587d;border-radius:11px;background:#6e587d;color:#fff;padding:13px;font-size:13px;font-weight:850;cursor:pointer}
+#librarySave{font-weight:850}
+@media(max-width:700px){.libraryChoices.libraryBookGrid{max-height:min(42dvh,390px)}.libraryBookTiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}

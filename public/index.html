@@ -43,10 +43,10 @@
             <div class="libraryGallerySummary"><strong id="libraryCount">0권의 책</strong><small>표지를 누르면 글을 펼칠 수 있어요.</small></div>
             <label class="librarySearchLabel" for="librarySearch"><span>제목·작성자 찾기</span><input id="librarySearch" type="search" maxlength="80" placeholder="제목이나 글쓴이 검색" autocomplete="off"></label>
           </div>
-          <nav id="libraryChoices" class="libraryChoices libraryBookGrid" aria-label="모임원들의 책 표지 목록"></nav>
+          <div id="libraryChoices" class="libraryChoices libraryBookGrid" aria-label="공개 책과 내 비공개 글 목록"></div>
           <div class="libraryPublish">
-            <span>✍️ 지금 작성 중인 내 글을 한 권의 책으로 보관하기</span>
-            <button id="librarySave" type="button">📚 내 글 책장에 꽂기</button>
+            <span>✍️ 현재 작성 중인 내 글을 <strong>누르는 즉시 모든 모임원에게 공개</strong>합니다.</span>
+            <button id="librarySave" type="button">📚 내 글 책장에 꽂기 · 즉시 공개</button>
           </div>
           <p id="libraryFeedback" class="libraryFeedback" role="status" aria-live="polite">책 표지를 선택해 읽거나, 작성한 글을 책장에 꽂아 보세요.</p>
         </section>
@@ -60,17 +60,17 @@
               <span id="libraryProgress" aria-live="polite">1 / 1쪽</span>
               <button type="button" id="libraryNext" aria-label="다음 페이지">다음 ›</button></div>
           </article>
-          <div class="libraryOwnerActions" id="libraryOwnerActions" hidden><span>✍️ 내가 꽂은 책</span><button type="button" id="libraryEdit">✏️ 책 수정</button><button type="button" id="libraryDelete" class="libraryDangerButton">🗑️ 책 삭제</button></div>
+          <div class="libraryOwnerActions" id="libraryOwnerActions" hidden><span id="libraryOwnerTitle">✍️ 내가 꽂은 책</span><button type="button" id="libraryEdit">✏️ 책 수정</button><button type="button" id="libraryDelete" class="libraryDangerButton">🗑️ 책 삭제</button><p id="libraryOwnerHelp" class="libraryOwnerHelp" role="status" aria-live="polite"></p></div>
           <div id="libraryEditor" class="libraryEditor" hidden>
             <label for="libraryEditTitle">책 제목 <small>최대 80자</small></label>
             <input id="libraryEditTitle" type="text" maxlength="140" placeholder="책 제목">
             <label for="libraryEditText">책 본문 <small id="libraryEditCount">0 / 10,000자</small></label>
             <textarea id="libraryEditText" rows="11" placeholder="수정할 글을 입력하세요."></textarea>
-            <p class="libraryEditHelp">이 수정은 책장에 공개된 책만 바꿉니다. 원래의 내 글 초안은 별도로 유지됩니다.</p>
+            <p class="libraryEditHelp" id="libraryEditHelp">수정 내용은 글의 공개 상태에 맞게 저장됩니다.</p>
             <div class="libraryEditActions"><button type="button" id="libraryEditCancel">← 수정 취소</button><button type="button" id="libraryEditSave">✓ 수정한 책 저장</button></div>
           </div>
           <p id="libraryActionFeedback" class="libraryFeedback" role="status" aria-live="polite">책을 읽고 있습니다.</p>
-          <button id="libraryRestore" type="button" hidden>↗ 이 기기에 남은 책을 다시 공유하기</button>
+          <button id="libraryRestore" type="button" hidden>📚 이 글 바로 공개하기</button>
           <div id="libraryNote" class="libraryHint">같은 모임방 참가자는 두 책장에서 같은 글을 읽을 수 있어요.</div>
         </section>
       </div>

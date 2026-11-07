@@ -147,10 +147,27 @@ function send(o){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringi
 // It protects new books even when another visitor chooses the same nickname.
 const bookshelfOwnerStorage=()=>`amateur-writing-book-owner-v1:${state.code}:${state.name}`;
 let bookshelfOwnerKey='';
-function ensureBookshelfOwnerKey(){
+let roomOwnerKeys=[];
+function collectRoomOwnerKeys(){
+ const valid=x=>typeof x==='string'&&/^[a-f0-9-]{32,80}$/i.test(x);
+ const keys=[];const add=x=>{if(valid(x)&&!keys.includes(x))keys.push(x)};
+ add(bookshelfOwnerKey);
+ try{
+  const prefix=`amateur-writing-book-owner-v1:${state.code}:`;
+  for(let i=0;i<localStorage.length&&keys.length<20;i++){
+   const k=localStorage.key(i);
+   if(k?.startsWith(prefix))add(localStorage.getItem(k));
+  }
+ }catch(e){}
+ roomOwnerKeys=keys;
+ return keys;
+}
+function ensureBookshelfOwnerKey(previousName=''){
  const k=bookshelfOwnerStorage();
  try{
   let v=localStorage.getItem(k);
+  // Same browser, renamed nickname: preserve the original secret instead of losing management rights.
+  if(!v&&previousName&&previousName!==state.name){const old=localStorage.getItem(`amateur-writing-book-owner-v1:${state.code}:${previousName}`);if(old){v=old;localStorage.setItem(k,v)}}
   if(!v){
    if(!crypto?.randomUUID)throw new Error('Secure UUID unavailable');
    v=crypto.randomUUID();localStorage.setItem(k,v);
@@ -161,9 +178,9 @@ function ensureBookshelfOwnerKey(){
 }
 function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($('#inviteCode').value||'NIGHT').trim().toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
   if(!state.muted)ensureAudio(); // entry click unlocks ambient playback on mobile browsers
-  state.name=name;state.code=code;ensureBookshelfOwnerKey();persist();$('#entryError').textContent='모임방에 연결하는 중입니다…';$('#enterBtn').disabled=true;
+  const previousName=state.name;state.name=name;state.code=code;ensureBookshelfOwnerKey(previousName);collectRoomOwnerKeys();persist();$('#entryError').textContent='모임방에 연결하는 중입니다…';$('#enterBtn').disabled=true;
   try{socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws')}catch(e){joinFail('서버 주소를 확인해 주세요.');return}
-  socket.onopen=()=>send({t:'join',name,code,color:state.color,gender:state.gender,ownerKey:bookshelfOwnerKey});
+  socket.onopen=()=>send({t:'join',name,code,color:state.color,gender:state.gender,ownerKey:bookshelfOwnerKey,ownerKeys:roomOwnerKeys});
   socket.onmessage=ev=>{let p;try{p=JSON.parse(ev.data)}catch(e){return}message(p)};
   socket.onerror=()=>joinFail('연결에 문제가 있어요. 서버가 실행 중인지 확인해 주세요.');
   socket.onclose=()=>{if(shelfActionPending)shelfActionFailed({message:'연결이 끊어져 수정·삭제 여부를 확인하지 못했습니다. 재접속한 뒤 책장을 확인해 주세요.',requestId:shelfActionPending.requestId});if(shelfPending)shelfFailed('연결이 끊겨 책장 저장을 확인하지 못했습니다. 재입장 후 책장을 확인해 주세요.',shelfPending.requestId);stopAmbient();if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
@@ -171,8 +188,9 @@ function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($(
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[]);
-   if(!p.features?.includes('shelf-save-ack-v2'))shelfFeedback('서버가 v14.12 저장 기능을 확인해 주지 않았습니다. GitHub 루트의 server.js와 public 폴더를 함께 업로드해야 최신 저장 기능이 작동합니다.','warning');
+  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});
+   if(!state.shelfManageSupported)shelfFeedback('현재 서버에 수정·삭제 기능이 없습니다. GitHub에서 server.js와 public 폴더를 함께 업로드하고 Render 배포 후 /health 버전을 확인해 주세요.','warning');
+   else if(!p.features?.includes('shelf-save-ack-v2'))shelfFeedback('서버가 최신 책장 저장 기능을 확인해 주지 않았습니다. GitHub 루트의 server.js와 public 폴더를 함께 업로드해 주세요.','warning');
    if(p.reading)showReading(p.reading);break;
   case 'join':peers.set(p.person.id,{...p.person,rx:p.person.x,rz:p.person.z,rr:p.person.rot});renderPeople();addSystem(p.person.name+' 님이 모임방에 왔어요.');playSound('click');if(state.mic)offer(p.person.id);break;
   case 'leave':{let gone=peers.get(p.id);if(gone)addSystem(gone.name+' 님이 나갔어요.');peers.delete(p.id);const pc=rtc.get(p.id);if(pc){pc.close();rtc.delete(p.id)}document.getElementById('audio-'+p.id)?.remove();renderPeople();break;}
@@ -190,7 +208,7 @@ function message(p){
   case 'shelfRemove': removeLibraryBook(p.id);break;
   case 'shelfError': shelfFailed(p.message,p.requestId);break;
   case 'chat':{receiveChat(p);bubble(p.id,p.text);break;}
-  case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
+  case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);showReactionAboveHead(p.kind,p.id);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
   case 'mood':{const mood={joy:'☀️ 기쁨',sad:'💧 슬픔',anger:'🔥 분노',worry:'🌧️ 불안',peace:'🍃 평온',hope:'✨ 기대',depression:'🌧️ 우울',anxiety:'🌪️ 불안',addiction:'🌀 중독',madness:'⚡ 광기',love:'💗 사랑'}[p.kind];const other=peers.get(p.id);if(mood){toast(p.name+' 님이 오늘의 마음을 나눴어요 · '+mood);if(other)emote('spark',other.x,other.z);playSound('heart')}break;}
 
   case 'reading':showReading(p.reading);if(p.reading){toast(p.reading.mode==='request'?p.reading.name+' 님이 대신 읽기를 부탁했어요.':'함께 낭독하는 시간이 시작됐어요.');playSound('reading')}else toast('낭독을 마쳤어요. 따뜻한 박수를 보내요.');break;
@@ -275,11 +293,32 @@ const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',
 // Only the tea/cookie/jelly reactions gain pictograms; no droplets or flying particles.
 function emote(kind,x,z){
  const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df'};
- const effectIcon=['tea','cookie','jelly'].includes(kind)?kind:null;
- lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132,effectIcon);
- burstLight={x,y:1.63,z,kind,end:performance.now()+(effectIcon?800:1000)};
+ lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132);
+ burstLight={x,y:1.63,z,kind,end:performance.now()+1000};
 }
-function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);playSound(kind)}
+const activeReactionBadges=[];
+function showReactionAboveHead(kind,personId){
+ if(!state.connected||!reactionEmoji[kind])return;
+ const el=document.createElement('div');el.className='overheadReaction';el.textContent=reactionEmoji[kind];
+ el.setAttribute('role','img');el.setAttribute('aria-label',({heart:'마음',clap:'박수',spark:'반짝임',wave:'인사',tea:'차 한 잔',cookie:'과자',jelly:'젤리'}[kind]||'반응'));
+ $('#fxlayer').append(el);
+ activeReactionBadges.push({el,personId,expires:performance.now()+1700});
+ positionReactionBadges();
+}
+function positionReactionBadges(){
+ const now=performance.now();
+ for(let i=activeReactionBadges.length-1;i>=0;i--){
+  const r=activeReactionBadges[i];if(now>=r.expires){r.el.remove();activeReactionBadges.splice(i,1);continue;}
+  const person=peers.get(r.personId);if(!person){r.el.remove();activeReactionBadges.splice(i,1);continue;}
+  // Above the real avatar head (head top ~=1.98m). Higher than the regular name label (2.25m).
+  const isMe=r.personId===state.me;
+  const pos=isMe&&cam.first?[canvas.clientWidth*.5,Math.max(72,canvas.clientHeight*.21),1]:screenAt([isMe?actor.x:(person.rx??person.x),2.43,isMe?actor.z:(person.rz??person.z)]);
+  if(!pos){r.el.style.display='none';continue}
+  const [x,y]=pos;const visible=x>=-70&&x<=canvas.clientWidth+70&&y>=-60&&y<=canvas.clientHeight+30;
+  r.el.style.display=visible?'grid':'none';if(visible){r.el.style.left=x+'px';r.el.style.top=Math.max(61,y)+'px';}
+ }
+}
+function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);showReactionAboveHead(kind,state.me);playSound(kind)}
 $$('[data-react]').forEach(b=>b.addEventListener('click',()=>react(b.dataset.react)));
 $('#chatForm').addEventListener('submit',e=>{e.preventDefault();const el=$('#chatInput'),t=el.value.trim();if(!t||!state.connected)return;send({t:'chat',text:t.slice(0,200)});el.value='';setTab('chat')});
 function setTab(t){$$('.tabs button').forEach(b=>b.classList.toggle('selected',b.dataset.tab===t));$$('.tabpane').forEach(p=>p.classList.toggle('active',p.id===t+'Pane'));}
@@ -290,8 +329,8 @@ function renderWriting(){const s=state.step;let h='';
 
  if(s===0)h=`<div class="stagehead">마음의 서랍 열기</div><p class="stage-desc">지금 내 마음에 가장 오래 머무는 생각은 무엇일까요?</p><div class="stagequote">“오늘 내가 가장 많이 느낀 감정은 무엇이었나요?”</div><label class="lab">생각을 순서 없이 적어 보세요</label><textarea class="field" id="notes" placeholder="사건, 기억, 걱정, 감사… 무엇이든 좋아요.">${escapeHtml(state.notes)}</textarea><div class="rowbtn"><button class="button primary" data-action="next">글감 찾기 →</button></div>`;
  if(s===1)h=`<div class="stagehead">글감 찾기</div><p class="stage-desc">마음에 닿는 문장이 있다면 그곳에서 시작해 보세요.</p><div class="stagequote" id="topicQuote">${escapeHtml(state.topic||prompts[0])}</div><button class="button secondary" data-action="shuffle">↻ 다른 글감 보여주기</button><label class="lab">나만의 글감</label><input class="field" id="topic" placeholder="직접 떠올린 주제도 좋아요" value="${escapeHtml(state.topic)}"><div class="rowbtn"><button class="button primary" data-action="next">문장 쓰기 →</button><button class="button subtle" data-action="prev">← 돌아가기</button></div>`;
- if(s===2)h=`<div class="stagehead">나의 문장 만들기</div><p class="stage-desc">부담 없이 적고, 나누고 싶은 만큼만 나누어요. 글은 이 기기에 자동 저장돼요.</p><label class="lab">제목</label><input class="field" id="storyTitle" maxlength="80" placeholder="아직 제목 없는 이야기" value="${escapeHtml(state.title)}"><label class="lab">본문</label><textarea class="field big" id="story" placeholder="오늘 밤에는 이런 이야기를 남기고 싶어요…">${escapeHtml(state.story)}</textarea><div class="timer"><small class="muted" id="len">${charCount(state.story).toLocaleString()} / ${SHELF_MAX_CHARS.toLocaleString()}자 · 초안 자동 저장</small><strong id="time">${timeFormat(state.timer)}</strong></div><div class="rowbtn"><button class="button secondary" data-action="timer">${state.running?'Ⅱ 타이머 멈추기':'▷ 20분 글쓰기 타이머'}</button><button class="button secondary" data-action="download">↓ 나의 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기</button><button class="button primary" data-action="next">낭독하기 →</button></div>`;
- if(s===3)h=`<div class="stagehead">함께 읽는 밤</div><p class="stage-desc">글이 완벽하지 않아도 괜찮아요. 누군가의 마음을 듣는 것만으로 이 공간은 따뜻해져요.</p><div class="stagequote">“부끄러워도 괜찮아요. 당신의 문장을 소중하게 듣겠습니다.”</div><div class="rowbtn"><button class="button primary" data-action="self">📖 모두에게 내 글 나누기</button><button class="button secondary" data-action="request">♡ 진행자에게 대신 읽기 부탁하기</button></div><p class="muted">공유하면 다른 사람에게 책 도착 알림이 뜹니다. 각자 원할 때 책을 펼쳐 읽을 수 있어요. 음성 대화를 쓰려면 ‘함께’ 탭에서 마이크를 연결하세요. 마이크 없이도 기기 읽기 기능을 사용할 수 있어요.</p><div class="rowbtn"><button class="button subtle" data-action="prev">← 글 수정하기</button><button class="button secondary" data-action="download">↓ 내 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기</button></div>`;
+ if(s===2)h=`<div class="stagehead">나의 문장 만들기</div><p class="stage-desc">부담 없이 적고, 나누고 싶은 만큼만 나누어요. 글은 이 기기에 자동 저장돼요.</p><label class="lab">제목</label><input class="field" id="storyTitle" maxlength="80" placeholder="아직 제목 없는 이야기" value="${escapeHtml(state.title)}"><label class="lab">본문</label><textarea class="field big" id="story" placeholder="오늘 밤에는 이런 이야기를 남기고 싶어요…">${escapeHtml(state.story)}</textarea><div class="timer"><small class="muted" id="len">${charCount(state.story).toLocaleString()} / ${SHELF_MAX_CHARS.toLocaleString()}자 · 초안 자동 저장</small><strong id="time">${timeFormat(state.timer)}</strong></div><div class="rowbtn"><button class="button secondary" data-action="timer">${state.running?'Ⅱ 타이머 멈추기':'▷ 20분 글쓰기 타이머'}</button><button class="button secondary" data-action="download">↓ 나의 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기 · 즉시 공개</button><button class="button primary" data-action="next">낭독하기 →</button></div>`;
+ if(s===3)h=`<div class="stagehead">함께 읽는 밤</div><p class="stage-desc">글이 완벽하지 않아도 괜찮아요. 누군가의 마음을 듣는 것만으로 이 공간은 따뜻해져요.</p><div class="stagequote">“부끄러워도 괜찮아요. 당신의 문장을 소중하게 듣겠습니다.”</div><div class="rowbtn"><button class="button primary" data-action="self">📖 모두에게 내 글 나누기</button><button class="button secondary" data-action="request">♡ 진행자에게 대신 읽기 부탁하기</button></div><p class="muted">공유하면 다른 사람에게 책 도착 알림이 뜹니다. 각자 원할 때 책을 펼쳐 읽을 수 있어요. 음성 대화를 쓰려면 ‘함께’ 탭에서 마이크를 연결하세요. 마이크 없이도 기기 읽기 기능을 사용할 수 있어요.</p><div class="rowbtn"><button class="button subtle" data-action="prev">← 글 수정하기</button><button class="button secondary" data-action="download">↓ 내 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기 · 즉시 공개</button></div>`;
  $('#writingContent').innerHTML=draftToolbar+h;$$('.steps button').forEach(b=>b.classList.toggle('active',+b.dataset.step===s));}
 function timeFormat(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
 function setStep(i){state.step=clamp(i,0,3);playSound();renderWriting()}
@@ -661,7 +700,7 @@ function updateProximityHint(){
 
 // V14.9: reliable shared bookshelf. Server acknowledgement is authoritative;
 // draft text is always kept locally and is never published automatically.
-const libraryState={open:false,id:null,page:0,view:'shelf',search:'',books:[],publishedIds:new Set(),editableIds:new Set(),deletedIds:new Set(),room:'',editing:false};
+const libraryState={open:false,id:null,page:0,view:'shelf',search:'',books:[],publishedIds:new Set(),editableIds:new Set(),serverEditableIds:new Set(),keyIndexById:{},deletedIds:new Set(),room:'',editing:false};
 const BOOKSHELF_LIMIT=100;
 let shelfPending=null,shelfTimer=null,shelfActionPending=null,shelfActionTimer=null;
 const libraryCacheKey=code=>'amateur-writing-shelf-v1-'+code;
@@ -669,9 +708,69 @@ const ownedBooksKey=()=>`amateur-writing-owned-books-v1:${state.code}:${state.na
 function getLocallyOwnedIds(){try{return JSON.parse(localStorage.getItem(ownedBooksKey())||'[]')}catch(e){return []}}
 function saveLocallyOwnedIds(){try{localStorage.setItem(ownedBooksKey(),JSON.stringify([...libraryState.editableIds].slice(-BOOKSHELF_LIMIT)))}catch(e){}}
 function legacyOwnDraft(book){return !book.ownerProtected&&book.author===state.name&&!!book.sourceDraftId&&drafts.some(d=>d.id===book.sourceDraftId)}
-function canEditBook(book){return state.shelfManageSupported!==false&&!!book&&libraryState.publishedIds.has(book.id)&&book.author===state.name&&(!!bookshelfOwnerKey||legacyOwnDraft(book))&&(libraryState.editableIds.has(book.id)||legacyOwnDraft(book))}
+function canEditBook(book){
+ if(!book||!state.shelfManageSupported||!libraryState.publishedIds.has(book.id))return false;
+ return book.ownerProtected?!!ownerKeyForBook(book)&&libraryState.serverEditableIds.has(book.id):legacyOwnDraft(book);
+}
+function ownerKeyForBook(book){
+ if(book?.ownerProtected){
+  const n=libraryState.keyIndexById?.[book.id];
+  if(Number.isInteger(n)&&roomOwnerKeys[n])return roomOwnerKeys[n];
+ }
+ return bookshelfOwnerKey;
+}
+function bookManagementReason(book){
+ if(!book)return '책을 선택해 주세요.';
+ if(book.author!==state.name)return '다른 참가자가 등록한 책입니다. 글쓴이만 수정하거나 삭제할 수 있어요.';
+ if(!state.shelfManageSupported)return '서버에 책 관리 기능이 적용되지 않았습니다. GitHub의 server.js와 public 파일을 함께 업데이트하고 배포한 뒤 /health에서 버전을 확인해 주세요.';
+ if(!libraryState.publishedIds.has(book.id))return '현재 서버 책장에 없는 오래된 로컬 복사본입니다. 이 기기에 저장된 글을 새로 책장에 꽂아 공유해 주세요.';
+ if(book.ownerProtected){
+   if(!bookshelfOwnerKey)return '이 브라우저에서 책 관리 키를 읽을 수 없습니다. 사이트 데이터 저장을 허용하고 원래 등록한 기기에서 다시 열어 주세요.';
+   if(!libraryState.serverEditableIds.has(book.id))return '이 책의 관리 키가 현재 브라우저와 일치하지 않습니다. 원래 책을 등록한 브라우저에서 같은 모임방 코드·작성자 이름으로 접속해 주세요. 이름만 같아도 관리할 수 없습니다.';
+ }else if(!legacyOwnDraft(book))return '이전 버전의 책에는 관리 키가 없습니다. 현재 기기에 등록 당시의 원본 초안이 없어서 본인임을 안전하게 확인할 수 없습니다. 기존 책을 임의로 삭제할 수 없으며, 원본 초안을 찾은 뒤 새 책으로 다시 등록할 수 있습니다.';
+ return '';
+}
 function freshRequestId(){return 'manage-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12)}
 
+// Local drafts are not uploaded to the server and never appear in another member's shelf.
+const privateDraftPrefix='private-draft:';
+const isPrivateDraftBook=b=>!!b&&typeof b.id==='string'&&b.id.startsWith(privateDraftPrefix);
+const privateDraftId=b=>isPrivateDraftBook(b)?b.id.slice(privateDraftPrefix.length):'';
+const isUnpublishedCache=b=>!!b&&!isPrivateDraftBook(b)&&!libraryState.publishedIds.has(b.id)&&b.author===state.name;
+const canEditPrivate=b=>isPrivateDraftBook(b)?drafts.some(d=>d.id===privateDraftId(b)):isUnpublishedCache(b);
+function displayLibraryBooks(){
+ const published=libraryState.books.filter(b=>libraryState.publishedIds.has(b.id));
+ const publishedDraftIds=new Set(published.map(b=>b.sourceDraftId).filter(Boolean));
+ const localDrafts=drafts.filter(d=>(d.title.trim()||d.story.trim())&&!publishedDraftIds.has(d.id)).map(d=>({
+  id:privateDraftPrefix+d.id,title:d.title||'제목 없는 글',text:d.story,author:state.name,
+  createdAt:d.createdAt,updatedAt:d.updatedAt,sourceDraftId:d.id,privateDraft:true
+ }));
+ // Old locally cached books that are no longer on the server remain private and editable here.
+ // Prefer the editable source draft when both exist to avoid duplicate covers for the same text.
+ const localIds=new Set(localDrafts.map(b=>b.sourceDraftId));
+ const cached=libraryState.books.filter(b=>isUnpublishedCache(b)&&(!b.sourceDraftId||!localIds.has(b.sourceDraftId)));
+ return [...published,...cached,...localDrafts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
+}
+const displayBook=id=>displayLibraryBooks().find(b=>b.id===id);
+function savePrivateDraftBook(book,title,text){
+ const draft=drafts.find(d=>d.id===privateDraftId(book));
+ if(!draft){libraryActionFeedback('비공개 초안을 찾을 수 없습니다. 내 글 목록에서 확인해 주세요.','error');return false}
+ draft.title=title==='제목 없는 글'?'':title;draft.story=text;draft.updatedAt=Date.now();
+ if(state.activeDraftId===draft.id){state.title=draft.title;state.story=draft.story;persist()}
+ else if(!saveDraftStorage()){libraryActionFeedback(draftStorageWarning,'error');return false}
+ if(!draftStorageWarning){libraryActionFeedback('이 기기의 비공개 초안을 수정했습니다. 다른 참가자에게는 공개되지 않았습니다.','success')}
+ if($('#writePane')?.classList.contains('active'))renderWriting();
+ return !draftStorageWarning;
+}
+function deletePrivateDraftBook(book){
+ const draft=drafts.find(d=>d.id===privateDraftId(book));if(!draft)return false;
+ drafts=drafts.filter(d=>d.id!==draft.id);
+ if(!drafts.length)drafts=[cleanDraft({id:makeDraftId()})];
+ if(state.activeDraftId===draft.id)loadDraft(drafts.at(-1).id);
+ persist();
+ if($('#writePane')?.classList.contains('active'))renderWriting();
+ return !draftStorageWarning;
+}
 function sanitizeShelfBook(b){
  if(!b||typeof b.id!=='string'||typeof b.title!=='string'||typeof b.text!=='string'||typeof b.author!=='string')return null;
  return {id:b.id.slice(0,64),title:b.title.slice(0,80),text:b.text,author:b.author.slice(0,18),createdAt:Number(b.createdAt)||0,sourceDraftId:typeof b.sourceDraftId==='string'?b.sourceDraftId.slice(0,80):'',updatedAt:Number(b.updatedAt)||0,ownerProtected:b.ownerProtected===true};
@@ -691,20 +790,23 @@ function shelfFeedback(text,kind='info'){
 function shelfBusy(busy){
  // Never disable because the draft is empty: the button must explain why saving failed.
  const save=$('#librarySave');if(save)save.disabled=busy||!state.connected;
- if(save)save.textContent=busy?'⏳ 서버에 저장하고 있어요…':'📚 내 글 책장에 꽂기';
+ if(save)save.textContent=busy?'⏳ 서버에 저장하고 있어요…':'📚 내 글 책장에 꽂기 · 즉시 공개';
  $$('[data-action="shelf"]').forEach(el=>{el.disabled=busy;});
 }
 function clearShelfPending(){if(shelfTimer){clearTimeout(shelfTimer);shelfTimer=null;}shelfPending=null;shelfBusy(false)}
-function syncLibrary(code,serverBooks,serverDeleted=[],serverEditable=[]){
+function syncLibrary(code,serverBooks,serverDeleted=[],serverEditable=[],serverKeyIndices={}){
  libraryState.room=code;
  libraryState.deletedIds=new Set(Array.isArray(serverDeleted)?serverDeleted:[]);
+ libraryState.serverEditableIds=new Set(Array.isArray(serverEditable)?serverEditable:[]);
+ libraryState.keyIndexById=(serverKeyIndices&&typeof serverKeyIndices==='object')?serverKeyIndices:{};
  libraryState.editableIds=new Set([...(Array.isArray(serverEditable)?serverEditable:[]),...getLocallyOwnedIds()]);
  let local=[];try{local=JSON.parse(localStorage.getItem(libraryCacheKey(code))||'[]')}catch(e){}
  if(!Array.isArray(local))local=[];
  const live=(Array.isArray(serverBooks)?serverBooks:[]).map(sanitizeShelfBook).filter(b=>b&&!libraryState.deletedIds.has(b.id));
  libraryState.publishedIds=new Set(live.map(b=>b.id));
  const publishedSources=new Set(live.map(b=>b.sourceDraftId).filter(Boolean));
- const map=new Map();for(const b of local.map(sanitizeShelfBook).filter(Boolean))if(!libraryState.deletedIds.has(b.id)&&(!b.sourceDraftId||!publishedSources.has(b.sourceDraftId)))map.set(b.id,b);
+ // Offline cached copies belong only to this browser's author; do not mistake another member's stale cache for a shared server book.
+ const map=new Map();for(const b of local.map(sanitizeShelfBook).filter(Boolean))if(b.author===state.name&&!libraryState.deletedIds.has(b.id)&&(!b.sourceDraftId||!publishedSources.has(b.sourceDraftId)))map.set(b.id,b);
  for(const b of live)map.set(b.id,b);
  libraryState.books=[...map.values()].sort((a,b)=>a.createdAt-b.createdAt).slice(-BOOKSHELF_LIMIT);
  if(libraryState.books.length)libraryState.id=libraryState.books.at(-1).id;
@@ -731,7 +833,7 @@ function shelfSaved(reply){
  // Handles a slow/stale response safely, without mutating a different room.
  receiveLibraryBook(book);
  if(!own)return;
- libraryState.editableIds.add(book.id);saveLocallyOwnedIds();
+ libraryState.editableIds.add(book.id);libraryState.serverEditableIds.add(book.id);libraryState.keyIndexById[book.id]=Math.max(0,roomOwnerKeys.indexOf(shelfPending?.ownerKey));saveLocallyOwnedIds();
  libraryState.id=book.id;libraryState.page=0;libraryState.view='shelf';
  clearShelfPending();refreshLibraryBook();
  if(reply.storage==='temporary'){
@@ -753,9 +855,8 @@ function publishToShelf(book=null){
  const currentText=book?book.text:($('#story')?.value??state.story);
  const currentTitle=book?book.title:($('#storyTitle')?.value??state.title);
  const body=String(currentText||'').trim(),title=String(currentTitle||'').trim()||'제목 없는 글';
- // Open the visible feedback panel BEFORE checks, including character-limit errors.
- // From the writing sidebar, errors used to be sent to a hidden bookshelf modal.
- openLibrary(true);
+ // Show server progress in the shelf without forcing a second confirmation.
+ if(!libraryState.open)openLibrary(true);else{libraryState.view='shelf';libraryState.editing=false;refreshLibraryBook()}
  const count=charCount(body),titleCount=charCount(title);
  if(!bookshelfOwnerKey){shelfFeedback('이 기기의 책 관리 키를 저장할 수 없습니다. 브라우저의 사이트 데이터 저장이 허용되어 있는지 확인한 뒤 다시 들어오세요.','error');return}
  if(!body){shelfFeedback('저장할 본문이 없습니다. 「글쓰기 → 03 글쓰기」에서 글을 작성해 주세요.','error');setStep(2);return}
@@ -766,11 +867,14 @@ function publishToShelf(book=null){
  const payload={t:'shelfAdd',requestId,title,text:body,sourceDraftId,ownerKey:bookshelfOwnerKey};
  const byteCount=new TextEncoder().encode(JSON.stringify(payload)).length;
  if(byteCount>SHELF_MAX_BYTES){shelfFeedback(`전송 용량 한도는 ${SHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${byteCount.toLocaleString()}바이트로 ${(byteCount-SHELF_MAX_BYTES).toLocaleString()}바이트 초과했습니다. 이 경우 글을 나누거나 일부 문자를 줄여 주세요.`,'error');return}
- const exists=libraryState.books.some(b=>b.sourceDraftId&&b.sourceDraftId===sourceDraftId&&b.author===state.name);
- if(!confirm(`『${title}』 (${count.toLocaleString()}자)을(를) ${exists?'책장에서 최신 내용으로 바꾸고':'새 책으로 추가해'} 이 모임방 모두에게 공개할까요?`))return;
+ const previouslyPublished=libraryState.books.find(b=>b.sourceDraftId&&b.sourceDraftId===sourceDraftId&&canEditBook(b));
+ const exists=!!previouslyPublished;
+ payload.ownerKey=previouslyPublished?ownerKeyForBook(previouslyPublished):bookshelfOwnerKey;
+ // One tap is the explicit publishing action: no extra confirmation step.
+ // The button itself clearly says the book becomes visible to everyone in this room.
  if(!book){state.story=body;state.title=title;persist()}
  if(!socket||socket.readyState!==WebSocket.OPEN){shelfFeedback('서버 연결이 끊어졌습니다. 다시 접속한 뒤 저장해 주세요. 초안은 이 기기에 남아 있습니다.','error');return}
- shelfPending={requestId,title};shelfBusy(true);
+ shelfPending={requestId,title,ownerKey:payload.ownerKey};shelfBusy(true);
  shelfFeedback(`『${title}』 (${count.toLocaleString()}자)을(를) 서버에 저장하는 중입니다. 성공/실패는 여기에 표시됩니다.`,'loading');
  try{socket.send(JSON.stringify(payload))}catch(e){shelfFailed('전송 실패: 네트워크 연결을 확인해 주세요. 초안은 이 기기에 남아 있습니다.',requestId);return}
  shelfTimer=setTimeout(()=>{
@@ -798,17 +902,17 @@ function clearShelfAction(){
 function removeLibraryBook(id){
  if(typeof id!=='string')return;
  libraryState.books=libraryState.books.filter(b=>b.id!==id);
- libraryState.publishedIds.delete(id);libraryState.editableIds.delete(id);libraryState.deletedIds.add(id);
+ libraryState.publishedIds.delete(id);libraryState.editableIds.delete(id);libraryState.serverEditableIds.delete(id);delete libraryState.keyIndexById[id];libraryState.deletedIds.add(id);
  saveLocallyOwnedIds();cacheLibrary();
  if(libraryState.id===id){libraryState.id=null;libraryState.page=0;libraryState.view='shelf';libraryState.editing=false}
  refreshLibraryBook();
 }
 function openLibraryEditor(){
- const book=libraryState.books.find(b=>b.id===libraryState.id);
- if(!canEditBook(book)||shelfActionPending){libraryActionFeedback('이 책을 수정할 권한이 없거나 저장 처리 중입니다.','error');return}
+ const book=displayBook(libraryState.id);
+ if(!book||(!canEditPrivate(book)&&!canEditBook(book))||shelfActionPending){libraryActionFeedback(shelfActionPending?'다른 책 관리 작업이 끝난 뒤 시도해 주세요.':bookManagementReason(book),'error');return}
  $('#libraryEditTitle').value=book.title;$('#libraryEditText').value=book.text;
  libraryState.editing=true;$('#libraryEditCount').textContent=charCount(book.text).toLocaleString()+' / '+SHELF_MAX_CHARS.toLocaleString()+'자';
- libraryActionFeedback('책장에 공개된 책을 수정합니다. 이 기기에 저장된 초안은 자동으로 바뀌지 않습니다.');
+ libraryActionFeedback(canEditPrivate(book)?'이 기기의 비공개 글을 수정합니다. 공개하려면 별도로 「책장에 꽂기」를 눌러 주세요.':'공개된 책을 수정합니다. 원래의 비공개 초안은 자동으로 바뀌지 않습니다.');
  refreshLibraryBook();$('#libraryEditTitle').focus({preventScroll:true});
 }
 function cancelLibraryEditor(){if(shelfActionPending)return;libraryState.editing=false;refreshLibraryBook()}
@@ -824,30 +928,44 @@ function sendShelfAction(payload){
  },9000);
 }
 function saveLibraryEdit(){
- const book=libraryState.books.find(b=>b.id===libraryState.id);
- if(!canEditBook(book)){libraryActionFeedback('이 책을 수정할 권한이 없습니다.','error');return}
+ const book=displayBook(libraryState.id);
+ if(!canEditPrivate(book)&&!canEditBook(book)){libraryActionFeedback(bookManagementReason(book),'error');return}
  const title=$('#libraryEditTitle').value.trim()||'제목 없는 글',text=$('#libraryEditText').value.trim();
  const chars=charCount(text),titles=charCount(title);
  if(!text){libraryActionFeedback('본문이 비어 있습니다. 내용을 작성해 주세요.','error');return}
  if(titles>80){libraryActionFeedback(`제목은 최대 80자입니다. 현재 ${titles}자이므로 ${titles-80}자를 줄여 주세요.`,'error');return}
  if(chars>SHELF_MAX_CHARS){libraryActionFeedback(`본문은 최대 ${SHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${chars.toLocaleString()}자이므로 ${(chars-SHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요.`,'error');return}
- const payload={t:'shelfUpdate',requestId:freshRequestId(),id:book.id,title,text,ownerKey:bookshelfOwnerKey,sourceDraftId:legacyOwnDraft(book)?book.sourceDraftId:'',expectedVersion:book.updatedAt||book.createdAt};
+ if(canEditPrivate(book)){
+  let ok=false;
+  if(isPrivateDraftBook(book))ok=savePrivateDraftBook(book,title,text);
+  else{const i=libraryState.books.findIndex(b=>b.id===book.id);if(i<0)return;libraryState.books[i]={...book,title,text,updatedAt:Date.now()};cacheLibrary();ok=true;libraryActionFeedback('이 기기에만 보관된 글을 수정했습니다. 다른 참가자에게는 아직 공개되지 않았습니다.','success')}
+  if(ok){libraryState.editing=false;libraryState.page=0;refreshLibraryBook()}
+  return;
+ }
+ const payload={t:'shelfUpdate',requestId:freshRequestId(),id:book.id,title,text,ownerKey:ownerKeyForBook(book),sourceDraftId:legacyOwnDraft(book)?book.sourceDraftId:'',expectedVersion:book.updatedAt||book.createdAt};
  const bytes=new TextEncoder().encode(JSON.stringify(payload)).length;
  if(bytes>SHELF_MAX_BYTES){libraryActionFeedback(`전송 한도는 ${SHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${bytes.toLocaleString()}바이트로 ${bytes-SHELF_MAX_BYTES}바이트 초과했습니다.`,'error');return}
  sendShelfAction(payload);
 }
 function deleteLibraryBook(){
- const book=libraryState.books.find(b=>b.id===libraryState.id);
- if(!canEditBook(book)){libraryActionFeedback('이 책을 삭제할 권한이 없습니다.','error');return}
+ const book=displayBook(libraryState.id);
+ if(!canEditPrivate(book)&&!canEditBook(book)){libraryActionFeedback(bookManagementReason(book),'error');return}
+ if(canEditPrivate(book)){
+  if(!confirm(`『${book.title}』 비공개 글을 이 기기에서 삭제할까요? 삭제한 내용은 복구하기 어렵습니다.\n공유한 책은 이 삭제로 영향을 받지 않습니다.`))return;
+  if(isPrivateDraftBook(book)){if(!deletePrivateDraftBook(book))return}
+  else{libraryState.books=libraryState.books.filter(b=>b.id!==book.id);cacheLibrary()}
+  libraryState.id=null;libraryState.page=0;libraryState.view='shelf';libraryState.editing=false;refreshLibraryBook();
+  shelfFeedback('비공개 글을 이 기기에서 삭제했습니다.','success');return;
+ }
  if(!confirm(`『${book.title}』을(를) 모임방 책장에서 삭제할까요? 다른 멤버의 책장에서도 사라집니다.\n내 기기의 글쓰기 초안은 삭제되지 않습니다.`))return;
- sendShelfAction({t:'shelfDelete',requestId:freshRequestId(),id:book.id,ownerKey:bookshelfOwnerKey,sourceDraftId:legacyOwnDraft(book)?book.sourceDraftId:'',expectedVersion:book.updatedAt||book.createdAt});
+ sendShelfAction({t:'shelfDelete',requestId:freshRequestId(),id:book.id,ownerKey:ownerKeyForBook(book),sourceDraftId:legacyOwnDraft(book)?book.sourceDraftId:'',expectedVersion:book.updatedAt||book.createdAt});
 }
 function shelfActionUpdated(p){
  if(!shelfActionPending||p?.requestId!==shelfActionPending.requestId||shelfActionPending.type!=='shelfUpdate')return;
  clearShelfAction();libraryState.editing=false;
  const book=sanitizeShelfBook(p.book);
  if(!book){libraryActionFeedback('서버의 수정 완료 응답이 잘못됐습니다. 책장을 다시 열어 확인해 주세요.','error');return}
- libraryState.editableIds.add(book.id);saveLocallyOwnedIds();receiveLibraryBook(book);
+ libraryState.editableIds.add(book.id);libraryState.serverEditableIds.add(book.id);saveLocallyOwnedIds();receiveLibraryBook(book);
  libraryState.id=book.id;libraryState.page=0;libraryState.view='reader';refreshLibraryBook();
  libraryActionFeedback('『'+book.title+'』 수정 완료! 다른 멤버의 책장에도 반영됐습니다.','success');playSound('reading');
 }
@@ -865,34 +983,46 @@ const libraryCoverTones=6;
 function coverToneFor(id){let h=17;for(const ch of String(id))h=(Math.imul(h,31)+ch.charCodeAt(0))|0;return (h>>>0)%libraryCoverTones}
 function renderLibraryGallery(){
  const holder=$('#libraryChoices');if(!holder)return;
- const books=[...libraryState.books].reverse();
+ const books=displayLibraryBooks();
  const q=libraryState.search.trim().toLocaleLowerCase('ko-KR');
  const filtered=q?books.filter(b=>(b.title+' '+b.author).toLocaleLowerCase('ko-KR').includes(q)):books;
- $('#libraryCount').textContent=q?`검색 결과 ${filtered.length}권 / 전체 ${books.length}권`:`${books.length}권의 책`;
+ const shared=filtered.filter(b=>libraryState.publishedIds.has(b.id));
+ const privateBooks=filtered.filter(b=>canEditPrivate(b));
+ $('#libraryCount').textContent=q?`검색 결과 ${filtered.length}권 · 공개 ${shared.length}권 · 내 비공개 글 ${privateBooks.length}편`:`모임방 공개 ${shared.length}권 · 내 비공개 글 ${privateBooks.length}편`;
  const fragment=document.createDocumentFragment();
- for(const b of filtered){
-  const btn=document.createElement('button');btn.type='button';btn.className='libraryBookTile';
-  btn.dataset.libraryBook=b.id;
-  const published=libraryState.publishedIds.has(b.id);
-  btn.setAttribute('aria-label',`『${b.title}』, 글쓴이 ${b.author}${published?'':' (이 기기에만 저장됨)'} — 펼쳐 읽기`);
-  const cover=document.createElement('span');cover.className='libraryBookCover tone-'+coverToneFor(b.id);
-  const top=document.createElement('span');top.className='libraryCoverTop';top.textContent='밤의 문장들 · OUR STORIES';
-  const motif=document.createElement('span');motif.className='libraryCoverMotif';motif.textContent='✦';motif.setAttribute('aria-hidden','true');
-  const title=document.createElement('strong');title.className='libraryCoverTitle';title.textContent=b.title;
-  const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent='글쓴이 · '+b.author;
-  const foot=document.createElement('span');foot.className='libraryCoverBottom';foot.textContent=canEditBook(b)?'내 책 · 수정/삭제 가능':published?'모임방 공유 중':'이 기기에만 저장';
-  cover.append(top,motif,title,author,foot);
-  const label=document.createElement('span');label.className='libraryBookTileLabel';label.textContent=b.title;
-  const by=document.createElement('span');by.className='libraryBookTileBy';by.textContent='✍ '+b.author;
-  btn.append(cover,label,by);fragment.append(btn);
+ function group(title,sub,entries){
+  const section=document.createElement('section');section.className='libraryBookGroup';
+  const heading=document.createElement('div');heading.className='libraryGroupHeading';
+  const h=document.createElement('strong');h.textContent=title+' ('+entries.length+')';
+  const hint=document.createElement('small');hint.textContent=sub;
+  heading.append(h,hint);section.append(heading);
+  const grid=document.createElement('div');grid.className='libraryBookTiles';
+  for(const b of entries){
+   const btn=document.createElement('button');btn.type='button';btn.className='libraryBookTile';
+   btn.dataset.libraryBook=b.id;
+   const published=libraryState.publishedIds.has(b.id),privateBook=canEditPrivate(b);
+   btn.setAttribute('aria-label',`『${b.title}』, 글쓴이 ${b.author}${privateBook?' (나만 볼 수 있는 비공개 글)':''} — 펼쳐 읽기`);
+   const cover=document.createElement('span');cover.className='libraryBookCover tone-'+coverToneFor(b.id);
+   if(privateBook)cover.classList.add('private-cover');
+   const top=document.createElement('span');top.className='libraryCoverTop';top.textContent=privateBook?'🔒 나만 보는 글 · DRAFT':'밤의 문장들 · OUR STORIES';
+   const motif=document.createElement('span');motif.className='libraryCoverMotif';motif.textContent=privateBook?'✎':'✦';motif.setAttribute('aria-hidden','true');
+   const title=document.createElement('strong');title.className='libraryCoverTitle';title.textContent=b.title;
+   const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent='글쓴이 · '+b.author;
+   const foot=document.createElement('span');foot.className='libraryCoverBottom';foot.textContent=privateBook?'비공개 · 수정/삭제 가능':canEditBook(b)?'내 책 · 수정/삭제 가능':published?(b.author===state.name?'내 책 · 관리 권한 확인 필요':'모임방 공유 중'):'이 기기에만 보관';
+   cover.append(top,motif,title,author,foot);
+   const label=document.createElement('span');label.className='libraryBookTileLabel';label.textContent=b.title;
+   const by=document.createElement('span');by.className='libraryBookTileBy';by.textContent=privateBook?'🔒 내 비공개 글':'✍ '+b.author;
+   btn.append(cover,label,by);grid.append(btn);
+  }
+  if(!entries.length){const empty=document.createElement('div');empty.className='libraryGalleryEmpty';empty.textContent=q?'검색 결과가 없습니다.':title.startsWith('우리')?'아직 공유된 책이 없어요.':'비공개 글이 없어요. 글쓰기 화면에서 새 글을 만들 수 있습니다.';grid.append(empty)}
+  section.append(grid);fragment.append(section);
  }
- if(!books.length){const empty=document.createElement('div');empty.className='libraryGalleryEmpty';empty.textContent='아직 책이 없습니다. 글을 작성한 뒤 아래 「내 글 책장에 꽂기」로 첫 번째 책을 등록해 보세요.';fragment.append(empty)}
- else if(!filtered.length){const empty=document.createElement('div');empty.className='libraryGalleryEmpty';empty.textContent=`‘${libraryState.search}’에 맞는 책이 없어요. 제목이나 글쓴이를 다시 검색해 보세요.`;fragment.append(empty)}
+ group('우리 모두의 책','이 모임방에 공개한 책 · 다른 참가자도 읽을 수 있어요',shared);
+ group('내 비공개 글','이 기기에만 저장됨 · 수정·삭제 가능 · 공개하려면 「책장에 꽂기」',privateBooks);
  holder.replaceChildren(fragment);
 }
 function renderLibraryReader(){
- const books=libraryState.books;
- const b=books.find(x=>x.id===libraryState.id);
+ const b=displayBook(libraryState.id);
  if(!b){libraryState.view='shelf';return}
  $('#libraryBookTitle').textContent=b.title;
  $('#libraryAuthor').textContent=`✍ 글쓴이: ${b.author} · ${new Date(b.createdAt||Date.now()).toLocaleDateString('ko-KR')}`;
@@ -902,18 +1032,29 @@ function renderLibraryReader(){
  $('#libraryProgress').textContent=`${libraryState.page+1} / ${pages.length}쪽`;
  $('#libraryPrev').disabled=libraryState.page===0;
  $('#libraryNext').disabled=libraryState.page>=pages.length-1;
- $('#libraryRestore').hidden=libraryState.publishedIds.has(b.id);
- const manageable=canEditBook(b);
+ const isPrivate=canEditPrivate(b);
+ const manageable=isPrivate||canEditBook(b);
  if(!manageable)libraryState.editing=false;
- $('#libraryOwnerActions').hidden=!manageable;
+ // Do not publish stale text while unsaved changes remain in the editor.
+ $('#libraryRestore').hidden=!isPrivate||libraryState.editing;
+ const sameAuthor=b.author===state.name;
+ $('#libraryOwnerActions').hidden=libraryState.editing||!(sameAuthor||manageable);
+ $('#libraryEdit').textContent=isPrivate?'✏️ 비공개 글 수정':'✏️ 책 수정';
+ $('#libraryDelete').textContent=isPrivate?'🗑️ 비공개 글 삭제':'🗑️ 책 삭제';
+ $('#libraryRestore').textContent=isPrivate?'📚 이 글 바로 공개하기':'↗ 이 기기에 남은 책 다시 공개하기';
+ $('#libraryReadToolbarActions').textContent=isPrivate?'🔒 나만 보는 비공개 글':'📖 모임원들에게 공개된 책';
+ $('#libraryEditHelp').textContent=isPrivate?'수정 내용은 이 기기에만 보관됩니다. 공개된 책에는 반영되지 않습니다.':'수정하면 모든 멤버에게 공개된 책 내용만 바뀝니다. 비공개 초안은 유지됩니다.';
+ const ownerHelp=$('#libraryOwnerHelp');
+ if(ownerHelp){ownerHelp.textContent=isPrivate?'아직 다른 사람에게 공유되지 않았습니다. 이 기기에서 자유롭게 수정·삭제할 수 있어요.':manageable?'이 책을 관리할 수 있습니다. 수정·삭제는 모든 멤버의 책장에 반영됩니다.':bookManagementReason(b);ownerHelp.dataset.kind=manageable?'success':'warning';}
+ $('#libraryOwnerTitle').textContent=isPrivate?'🔒 비공개 글 · 수정/삭제 가능':manageable?'✍️ 내가 관리하는 책 · 수정/삭제 가능':'✍️ 내 이름의 책 · 권한 확인 필요';
  $('#libraryReadPaper').hidden=libraryState.editing;
  $('#libraryEditor').hidden=!libraryState.editing;
  $('#libraryReadToolbarActions').hidden=libraryState.editing;
- $('#libraryNote').textContent=libraryState.publishedIds.has(b.id)?'같은 모임방 참가자는 글쓰기 모임방과 심리 모임방에서 이 책을 읽을 수 있어요.':'이 책은 이 기기에만 남아 있어요. 다른 참가자에게 보이게 하려면 다시 공유해 주세요.';
+ $('#libraryNote').textContent=isPrivate?'비공개: 이 글은 이 기기에만 있습니다. 「이 글 바로 공개하기」를 누르면 확인 절차 없이 즉시 모두에게 공개됩니다.':'공개: 같은 모임방 참가자는 두 책장 어디에서나 이 책을 읽을 수 있어요.';
 }
 function refreshLibraryBook(){
  if(!$('#libraryChoices'))return;
- if(libraryState.view==='reader'&&!libraryState.books.some(b=>b.id===libraryState.id))libraryState.view='shelf';
+ if(libraryState.view==='reader'&&!displayBook(libraryState.id))libraryState.view='shelf';
  const isReader=libraryState.view==='reader';
  $('#libraryShelfView').hidden=isReader;
  $('#libraryReaderView').hidden=!isReader;
@@ -934,7 +1075,7 @@ $('#libraryClose').onclick=closeLibrary;
 $('#libraryModal').addEventListener('click',e=>{if(e.target.id==='libraryModal')closeLibrary()});
 $('#libraryChoices').addEventListener('click',e=>{
  const btn=e.target.closest('[data-library-book]');if(!btn)return;
- libraryState.id=btn.dataset.libraryBook;libraryState.page=0;libraryState.view='reader';libraryState.editing=false;libraryActionFeedback('책을 읽고 있습니다. 본인이 등록한 책은 아래에서 수정하거나 삭제할 수 있어요.');
+ libraryState.id=btn.dataset.libraryBook;libraryState.page=0;libraryState.view='reader';libraryState.editing=false;libraryActionFeedback('책을 펼쳤습니다. 내 비공개 글은 이 화면에서 수정·삭제할 수 있고, 「바로 공개하기」로 공유할 수 있어요.');
  refreshLibraryBook();$('#libraryBack')?.focus({preventScroll:true});playSound('reading');
 });
 $('#libraryBack').onclick=()=>{returnToLibraryGallery();playSound('click')};
@@ -942,7 +1083,7 @@ $('#librarySearch').addEventListener('input',e=>{libraryState.search=e.target.va
 $('#libraryPrev').onclick=()=>{libraryState.page=Math.max(0,libraryState.page-1);renderLibraryReader();playSound('click')};
 $('#libraryNext').onclick=()=>{libraryState.page++;renderLibraryReader();playSound('click')};
 $('#librarySave').onclick=()=>publishToShelf();
-$('#libraryRestore').onclick=()=>{const b=libraryState.books.find(x=>x.id===libraryState.id);if(b)publishToShelf(b)};
+$('#libraryRestore').onclick=()=>{const b=displayBook(libraryState.id);if(b&&canEditPrivate(b))publishToShelf(b)};
 $('#libraryEdit').onclick=openLibraryEditor;
 $('#libraryDelete').onclick=deleteLibraryBook;
 $('#libraryEditSave').onclick=saveLibraryEdit;
@@ -1116,6 +1257,7 @@ function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame
  if(state.connected){const moving=move(dt);actor.moving=moving;if(moving&&now-lastStepAt>405){playFootstep();lastStepAt=now}if(moving&&now-lastNet>85){sendMove();lastNet=now}if(!moving&&now-lastNet>950){sendMove();lastNet=now}updateZone();}
  updateProximityHint();
  cameraUpdate(dt);
+ positionReactionBadges();
  if(gl){gl.uniform1f(uStandLampOn,state.lampOn?1:0);if(burstLight&&now<burstLight.end){const color=burstLight.kind==='heart'?[1,.38,.55]:burstLight.kind==='jelly'?[.93,.54,.94]:burstLight.kind==='tea'?[.68,1,.60]:[1,.84,.54];gl.uniform3f(uFxPos,burstLight.x,burstLight.y,burstLight.z);gl.uniform3fv(uFxColor,new Float32Array(color));gl.uniform1f(uFxPower,Math.max(0,(burstLight.end-now)/1000)*2.1);}else{gl.uniform1f(uFxPower,0);}gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);draw(state.lampOn?lampBulbOnBuffer:lampBulbOffBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
   if(p.id!==state.me){p.rx+=(p.x-p.rx)*Math.min(1,dt*11);p.rz+=(p.z-p.rz)*Math.min(1,dt*11);p.rr+=(p.rot-p.rr)*Math.min(1,dt*10)}
   const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz,rot=p.id===state.me?actor.rot:p.rr;

@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.16.0",
+  "version": "14.17.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D v14.15 — 책장 권한 진단 및 실제 공유 검증, 캐릭터 머리 위 반응 아이콘",
+  "description": "아마추어 글쓰기 3D v14.15 — 비공개 글 수정·삭제 및 한 번 누르면 즉시 책장 공개",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
