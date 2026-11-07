@@ -1075,11 +1075,14 @@ function renderLibraryGallery(){
    btn.setAttribute('aria-label',`『${b.title}』, 글쓴이 ${b.author}${privateBook?' (나만 볼 수 있는 비공개 글)':''} — 펼쳐 읽기`);
    const cover=document.createElement('span');cover.className='libraryBookCover tone-'+coverToneFor(b.id);
    if(privateBook)cover.classList.add('private-cover');
-   // Covers intentionally contain ONLY the title and the writer's name.
-   // Group headings above the gallery already identify shared vs. private works.
+   // A book cover is divided into a 60% title area and a 40% writer area.
+   // Keep the entire cover clickable, including the separated writer band.
+   const titleBand=document.createElement('span');titleBand.className='libraryCoverTitleBand';
    const title=document.createElement('strong');title.className='libraryCoverTitle';title.textContent=b.title;
-   const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent=b.author;
-   cover.append(title,author);
+   titleBand.append(title);
+   const authorBand=document.createElement('span');authorBand.className='libraryCoverAuthorBand';
+   const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent='글쓴이 . '+b.author;
+   authorBand.append(author);cover.append(titleBand,authorBand);
    btn.append(cover);
    const entry=document.createElement('div');entry.className='libraryBookEntry';entry.append(btn);
    if(privateBook){
