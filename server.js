@@ -8,12 +8,15 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
-const APP_VERSION = '14.12.0';
+const APP_VERSION = '14.13.0';
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
 // A shared bookshelf. For persistent storage on Render, set BOOKSHELF_DATA_DIR to a mounted persistent disk.
-const BOOKSHELF_LIMIT=64;
+const BOOKSHELF_LIMIT=100;
+const BOOKSHELF_MAX_CHARS=10000;
+const BOOKSHELF_MAX_BYTES=65000;
+const WS_MAX_FRAME_BYTES=96*1024;
 const BOOKSHELF_DIR=process.env.BOOKSHELF_DATA_DIR || path.join(__dirname,'data');
 const BOOKSHELF_FILE=path.join(BOOKSHELF_DIR,'room-books.json');
 const savedBooks=new Map();
@@ -78,7 +81,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,features:['shelf-save-ack-v2']});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000']});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -126,41 +129,53 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       broadcast(room,{t:'mood',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
     case 'shelfAdd':{
-      // Acknowledgments are explicit: the browser never calls a book 'published'
-      // before it is actually committed to the server-side collection.
+      // Explicit validation before trimming: never silently truncate user writing.
       const requestId=typeof msg.requestId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(msg.requestId)?msg.requestId:'';
-      const fail=message=>send(c,{t:'shelfError',requestId,message});
+      const fail=(message,reason='INVALID_INPUT')=>send(c,{t:'shelfError',requestId,message,reason,maxChars:BOOKSHELF_MAX_CHARS});
       const prior=requestId&&room.books.find(b=>b.requestId===requestId);
-      if(prior){send(c,{t:'shelfAck',requestId,book:prior,storage:transientBookIds.has(prior.id)?'temporary':'file',reason:transientBookIds.has(prior.id)?'서버 파일 저장 실패 후 임시 공유 중':''});return}
-      if(!rate(c,'shelfAdd',1200)){fail('등록 요청을 처리하는 중이에요. 잠시 후 다시 눌러 주세요.');return}
-      const title=safeStr(msg.title,80)||'제목 없는 글';
-      const text=safeStr(msg.text,10000);
-      const byteLength=Buffer.byteLength(JSON.stringify({t:'shelfAdd',requestId,title,text}),'utf8');
-      if(!text){fail('책장에 꽂을 글을 먼저 작성해 주세요.');return}
-      if(typeof msg.text!=='string'||msg.text.trim().length>10000||byteLength>30000){fail('글이 한 번에 전송할 수 있는 크기를 넘었어요. 글을 나누어 저장해 주세요.');return}
-      if(room.books.length>=BOOKSHELF_LIMIT){fail('이 모임방의 책장이 가득 찼어요(64권).');return}
-      const entry={id:crypto.randomUUID(),title,text,author:c.name,createdAt:Date.now(),...(requestId?{requestId}:{})};
-      const next=[...room.books,entry];
+      if(prior){send(c,{t:'shelfAck',requestId,book:prior,updated:!!prior.updatedAt,storage:transientBookIds.has(prior.id)?'temporary':'file',reason:transientBookIds.has(prior.id)?'서버 파일 저장 실패 후 임시 공유 중':''});return}
+      if(!rate(c,'shelfAdd',1200)){fail('등록 요청이 너무 빠르게 반복됐습니다. 잠시 후 다시 눌러 주세요.','RATE_LIMIT');return}
+      if(typeof msg.text!=='string'){fail('본문 형식이 올바르지 않습니다. 글쓰기 화면에서 다시 저장해 주세요.','INVALID_TEXT');return}
+      const rawText=msg.text;
+      const text=rawText.trim();
+      const count=[...text].length;
+      if(!text){fail('본문이 비어 있습니다. 글을 작성한 후 책장에 꽂아 주세요.','EMPTY_TEXT');return}
+      if(count>BOOKSHELF_MAX_CHARS){fail(`본문 저장 한도는 최대 ${BOOKSHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${count.toLocaleString()}자로 ${(count-BOOKSHELF_MAX_CHARS).toLocaleString()}자를 줄여야 합니다. 작성한 글은 삭제되지 않습니다.`,'CHAR_LIMIT');return}
+      if(typeof msg.title==='string'&&[...msg.title.trim()].length>80){
+        const titleCount=[...msg.title.trim()].length;
+        fail(`제목은 최대 80자입니다. 현재 ${titleCount}자로 ${titleCount-80}자를 줄여 주세요.`,'TITLE_LIMIT');return;
+      }
+      const title=(typeof msg.title==='string'?[...msg.title.trim()].slice(0,80).join(''):'')||'제목 없는 글';
+      const sourceDraftId=(typeof msg.sourceDraftId==='string'&&/^draft-[a-z0-9-]{1,72}$/i.test(msg.sourceDraftId))?msg.sourceDraftId:'';
+      const byteLength=Buffer.byteLength(JSON.stringify({t:'shelfAdd',requestId,title,text,sourceDraftId}),'utf8');
+      if(byteLength>BOOKSHELF_MAX_BYTES){fail(`본문 전송 용량은 최대 ${BOOKSHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${byteLength.toLocaleString()}바이트로 ${(byteLength-BOOKSHELF_MAX_BYTES).toLocaleString()}바이트를 줄여 주세요.`, 'BYTE_LIMIT');return}
+      const existingIndex=sourceDraftId?room.books.findIndex(b=>b.sourceDraftId===sourceDraftId && b.author===c.name):-1;
+      if(room.books.length>=BOOKSHELF_LIMIT&&existingIndex<0){fail(`이 모임방 책장은 최대 ${BOOKSHELF_LIMIT}권까지 저장할 수 있습니다. 현재 ${room.books.length}권이라 새 책을 꽂을 수 없습니다.`, 'SHELF_FULL');return}
+      const existing=existingIndex>=0?room.books[existingIndex]:null;
+      const now=Date.now();
+      const entry=existing?
+        {...existing,title,text,updatedAt:now,requestId}:
+        {id:crypto.randomUUID(),title,text,author:c.name,createdAt:now,updatedAt:0,requestId,...(sourceDraftId?{sourceDraftId}:{})};
+      const next=existingIndex>=0?room.books.map((b,i)=>i===existingIndex?entry:b):[...room.books,entry];
       savedBooks.set(room.code,next);
       let storage='file',reason='';
       try{persistBooks();transientBookIds.clear()}catch(e){
         transientBookIds.add(entry.id);
-        // Keep the book in the live room and on all participants' local browser caches.
-        // Never claim the server disk persisted it when the write failed.
         storage='temporary';
-        const reasons={EROFS:'서버 저장 공간이 읽기 전용입니다',EACCES:'서버 저장 권한이 없습니다',ENOSPC:'서버 저장 공간이 부족합니다'};
+        const reasons={EROFS:'서버 저장 공간이 읽기 전용입니다',EACCES:'서버 저장 권한이 없습니다',ENOSPC:'서버 저장 공간이 부족합니다',EDQUOT:'서버 디스크 할당량이 초과됐습니다'};
         reason=reasons[e.code]||'서버 파일에 쓸 수 없습니다';
         console.error('책장 디스크 저장 실패:',e.code||'UNKNOWN',e.message);
       }
       room.books=next;
-      send(c,{t:'shelfAck',requestId,book:entry,storage,reason});
+      send(c,{t:'shelfAck',requestId,book:entry,updated:!!existing,storage,reason});
       broadcast(room,{t:'shelfBook',book:entry});
       break;
     }
     case 'reading':{
       if(!rate(c,'reading',1500))return;
-      const title=safeStr(msg.title,80)||'제목 없는 글',text=safeStr(msg.text,4000);
+      const title=safeStr(msg.title,80)||'제목 없는 글',rawText=typeof msg.text==='string'?msg.text:'',text=rawText.trim();
       if(!text){send(c,{t:'error',message:'먼저 글을 작성해 주세요.'});return}
+      const length=[...text].length;if(length>BOOKSHELF_MAX_CHARS){send(c,{t:'error',message:`함께 읽기는 최대 ${BOOKSHELF_MAX_CHARS.toLocaleString()}자까지 가능합니다. 현재 ${length.toLocaleString()}자이므로 ${(length-BOOKSHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요.`});return}
       const mode=msg.mode==='request'?'request':'self';
       room.reading={from:c.id,requester:c.id,name:c.name,title,text,mode,at:Date.now()};
       broadcast(room,{t:'reading',reading:room.reading});break;
@@ -194,9 +209,9 @@ server.on('upgrade',(req,socket)=>{
   const c={id:crypto.randomUUID(),socket,buffer:Buffer.alloc(0),room:null,name:'',last:{},seen:Date.now()};
   socket.on('data',chunk=>{
     c.seen=Date.now();c.buffer=Buffer.concat([c.buffer,chunk]);
-    if(c.buffer.length>200000){socket.destroy();return}
-    while(c.buffer.length>=2){const b=c.buffer,op=b[0]&15,fin=!!(b[0]&128);let len=b[1]&127,offset=2;if(len===126){if(b.length<4)return;len=b.readUInt16BE(2);offset=4}else if(len===127){if(b.length<10)return;const v=b.readBigUInt64BE(2);if(v>32000n){socket.destroy();return}len=Number(v);offset=10}
-      if(len>32000||!(b[1]&128)){socket.destroy();return}if(b.length<offset+4+len)return;
+    if(c.buffer.length>220000){send(c,{t:'error',message:'전송 데이터가 너무 큽니다. 본문은 최대 10,000자까지 저장할 수 있습니다.'});socket.destroy();return}
+    while(c.buffer.length>=2){const b=c.buffer,op=b[0]&15,fin=!!(b[0]&128);let len=b[1]&127,offset=2;if(len===126){if(b.length<4)return;len=b.readUInt16BE(2);offset=4}else if(len===127){if(b.length<10)return;const v=b.readBigUInt64BE(2);if(v>BigInt(WS_MAX_FRAME_BYTES)){send(c,{t:'error',message:`전송 용량이 ${WS_MAX_FRAME_BYTES.toLocaleString()}바이트를 초과했습니다. 본문은 최대 10,000자까지 저장할 수 있습니다.`});socket.destroy();return}len=Number(v);offset=10}
+      if(len>WS_MAX_FRAME_BYTES||!(b[1]&128)){socket.destroy();return}if(b.length<offset+4+len)return;
       const mask=b.subarray(offset,offset+4),payload=Buffer.from(b.subarray(offset+4,offset+4+len));for(let i=0;i<len;i++)payload[i]^=mask[i%4];c.buffer=b.subarray(offset+4+len);
       if(op===8){socket.end();return}if(op===9){socket.write(Buffer.from([0x8a,payload.length,...payload]));continue}if(op===10)continue;if(op!==1||!fin){socket.destroy();return}
       try{handle(c,JSON.parse(payload.toString('utf8')))}catch(e){

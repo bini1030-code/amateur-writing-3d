@@ -323,3 +323,13 @@
  color:#603e09;background:#ffedc2;border-color:#bb7920;
 }
 @media(max-width:700px){#libraryFeedback.libraryFeedback{font-size:12px;line-height:1.65;padding:11px 12px}}
+
+/* v14.13: multiple personal drafts */
+.draftManager{padding:13px;background:#fffaf2;border:1px solid #d4bba2;border-radius:12px;margin-bottom:17px;box-shadow:0 3px 14px #4c32220a}
+.draftManagerHeader{display:flex;justify-content:space-between;flex-wrap:wrap;align-items:baseline;gap:5px;margin-bottom:10px}
+.draftManagerHeader strong{color:#49382c;font-size:13px}.draftManagerHeader strong span{font-weight:500;color:#8b6b56}
+.draftManagerHeader small{color:#785d48;font-size:10px}.draftManager label{display:block;margin:0 0 5px;font-size:11px;font-weight:750;color:#594336}
+.draftManager select.field{font-size:13px;line-height:1.45;padding:8px 10px;background:#fff;max-width:100%}
+.draftManagerActions{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}.draftManagerActions button{flex:1;padding:9px 10px;font-size:11px;min-width:90px}
+.draftStorageError{margin:9px 0 0;color:#821c22;background:#fff0f0;border:1px solid #a52d35;border-radius:8px;padding:10px;font-size:12px;font-weight:700;line-height:1.5}
+@media(max-width:700px){.draftManager{padding:11px}.draftManager select.field{font-size:16px}}

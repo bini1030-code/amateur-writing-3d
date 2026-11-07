@@ -6,7 +6,72 @@ const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const prompts=['어느 날 문득 나를 위로해 준 작은 말','지금 다시 만나고 싶은 한 사람','오늘 내가 지켜낸 작은 용기','말로는 꺼내지 못했던 마음 한 조각','내게 평안함을 주는 저녁의 풍경','지나온 계절에 전하고 싶은 편지','아무것도 특별하지 않았던 소중한 순간','내 삶에 남아 있는 누군가의 친절'];
 let saved={};try{saved=JSON.parse(localStorage.getItem('amateur-writing-live-v2')||'{}')}catch(e){}
 const state={name:saved.name||'',code:new URLSearchParams(location.search).get('room')||saved.code||'NIGHT',color:saved.color||0,gender:saved.gender==='female'?'female':'male',notes:saved.notes||'',topic:saved.topic||'',title:saved.title||'',story:saved.story||'',step:0,read:null,connected:false,me:null,mic:false,muted:false,room:'main',sitting:false,restSpot:null,lampOn:true,timer:20*60,running:false};
-function persist(){try{localStorage.setItem('amateur-writing-live-v2',JSON.stringify({name:state.name,code:state.code,color:state.color,gender:state.gender,notes:state.notes,topic:state.topic,title:state.title,story:state.story}))}catch(e){}}
+const SHELF_MAX_CHARS=10000;
+const SHELF_MAX_BYTES=65000;
+const DRAFT_LIMIT=80;
+const DRAFT_STORAGE_KEY='amateur-writing-personal-drafts-v1';
+const charCount=value=>[...String(value||'')].length;
+const makeDraftId=()=> 'draft-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12);
+let drafts=[];
+let draftStorageWarning='';
+function cleanDraft(d){
+ if(!d||typeof d!=='object'||typeof d.id!=='string')return null;
+ return {id:d.id.slice(0,80),title:String(d.title||'').slice(0,80),story:String(d.story||''),topic:String(d.topic||''),notes:String(d.notes||''),createdAt:Number(d.createdAt)||Date.now(),updatedAt:Number(d.updatedAt)||Date.now()};
+}
+function saveDraftStorage(){
+ try{localStorage.setItem(DRAFT_STORAGE_KEY,JSON.stringify(drafts));draftStorageWarning='';return true}
+ catch(e){draftStorageWarning='기기 저장 공간이 부족하거나 차단되어 이 글의 자동 저장이 실패했습니다. 먼저 「↓ 나의 글 저장」으로 파일을 내려받으세요.';return false}
+}
+function saveActiveDraft(){
+ if(!state.activeDraftId)return;
+ let d=drafts.find(d=>d.id===state.activeDraftId);
+ if(!d){d=cleanDraft({id:state.activeDraftId,createdAt:Date.now()});drafts.push(d)}
+ d.title=state.title;d.story=state.story;d.topic=state.topic;d.notes=state.notes;d.updatedAt=Date.now();
+ saveDraftStorage();
+}
+function loadDraft(id){
+ const d=drafts.find(d=>d.id===id);if(!d)return false;
+ state.activeDraftId=d.id;state.title=d.title;state.story=d.story;state.topic=d.topic;state.notes=d.notes;
+ try{localStorage.setItem('amateur-writing-live-v2',JSON.stringify({name:state.name,code:state.code,color:state.color,gender:state.gender,notes:state.notes,topic:state.topic,title:state.title,story:state.story,activeDraftId:state.activeDraftId}))}catch(e){}
+ return true;
+}
+function initDrafts(){
+ try{const raw=JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY)||'[]');if(Array.isArray(raw))drafts=raw.map(cleanDraft).filter(Boolean).slice(-DRAFT_LIMIT)}catch(e){}
+ // Migration: keep the user's previous single writing as a draft instead of replacing it.
+ if(!drafts.length){
+  const draft=cleanDraft({id:makeDraftId(),title:state.title,story:state.story,topic:state.topic,notes:state.notes});
+  drafts=[draft];saveDraftStorage();
+ }
+ const chosen=drafts.find(d=>d.id===saved.activeDraftId)||drafts[drafts.length-1];
+ loadDraft(chosen.id);
+}
+function persist(){
+ saveActiveDraft();
+ try{localStorage.setItem('amateur-writing-live-v2',JSON.stringify({name:state.name,code:state.code,color:state.color,gender:state.gender,notes:state.notes,topic:state.topic,title:state.title,story:state.story,activeDraftId:state.activeDraftId}))}catch(e){draftStorageWarning='기기 저장 공간 부족으로 자동 저장에 실패했습니다. 글을 파일로 내려받으세요.'}
+ const panel=document.querySelector('.draftManager');
+ if(panel){let warning=panel.querySelector('.draftStorageError');
+  if(draftStorageWarning){if(!warning){warning=document.createElement('p');warning.className='draftStorageError';warning.setAttribute('role','alert');panel.append(warning)}warning.textContent=draftStorageWarning}
+  else warning?.remove();
+ }
+}
+initDrafts();
+function newDraft(){
+ if(drafts.length>=DRAFT_LIMIT){toast(`이 기기에 글은 최대 ${DRAFT_LIMIT}편까지 저장할 수 있어요. 필요 없는 글을 삭제하거나 파일로 내려받으세요.`);return}
+ persist();const draft=cleanDraft({id:makeDraftId()});drafts.push(draft);
+ loadDraft(draft.id);persist();state.step=2;renderWriting();toast('새 글을 만들었어요. 이전 글은 내 글 목록에 남아 있습니다.');
+}
+function switchDraft(id){
+ if(id===state.activeDraftId)return;
+ persist();if(!loadDraft(id))return;state.step=2;renderWriting();playSound('click');toast('선택한 글을 불러왔어요.');
+}
+function deleteDraft(){
+ const target=drafts.find(d=>d.id===state.activeDraftId);if(!target)return;
+ if(!confirm(`『${target.title||'제목 없는 글'}』의 이 기기 초안을 삭제할까요? 책장에 공개한 책은 삭제되지 않습니다.`))return;
+ drafts=drafts.filter(d=>d.id!==target.id);
+ if(!drafts.length)drafts=[cleanDraft({id:makeDraftId()})];
+ loadDraft(drafts[drafts.length-1].id);persist();state.step=2;renderWriting();toast('선택한 초안을 삭제했어요.');
+}
+
 let burstLight=null;let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
 const actor={x:0,z:9.1,rot:Math.PI,action:'stand',moving:false};
 const cam={yaw:0,pitch:.31,dist:4.7,followPos:null,first:false,eye:[0,0,0],center:[0,0,0],matrix:null};
@@ -200,19 +265,24 @@ $('#chatForm').addEventListener('submit',e=>{e.preventDefault();const el=$('#cha
 function setTab(t){$$('.tabs button').forEach(b=>b.classList.toggle('selected',b.dataset.tab===t));$$('.tabpane').forEach(p=>p.classList.toggle('active',p.id===t+'Pane'));}
 $$('.tabs button').forEach(b=>b.onclick=()=>{setTab(b.dataset.tab);playSound()});
 function renderWriting(){const s=state.step;let h='';
+ const draftOptions=drafts.map((d,i)=>`<option value="${escapeHtml(d.id)}" ${d.id===state.activeDraftId?'selected':''}>${escapeHtml(d.title.trim()||`제목 없는 글 ${i+1}`)} · ${new Date(d.updatedAt).toLocaleDateString('ko-KR')}</option>`).join('');
+ const draftToolbar=`<div class="draftManager"><div class="draftManagerHeader"><strong>✍️ 내 글 목록 <span>(${drafts.length}/${DRAFT_LIMIT}편)</span></strong><small>서로 다른 글을 불러오거나 새로 쓸 수 있어요</small></div><label for="draftSelect">작업 중인 글 선택</label><select id="draftSelect" class="field" aria-label="저장된 내 글 선택">${draftOptions}</select><div class="draftManagerActions"><button type="button" class="button secondary" data-action="newDraft">＋ 새 글 쓰기</button><button type="button" class="button subtle" data-action="deleteDraft">현재 글 삭제</button></div>${draftStorageWarning?`<p class="draftStorageError" role="alert">${escapeHtml(draftStorageWarning)}</p>`:''}</div>`;
+
  if(s===0)h=`<div class="stagehead">마음의 서랍 열기</div><p class="stage-desc">지금 내 마음에 가장 오래 머무는 생각은 무엇일까요?</p><div class="stagequote">“오늘 내가 가장 많이 느낀 감정은 무엇이었나요?”</div><label class="lab">생각을 순서 없이 적어 보세요</label><textarea class="field" id="notes" placeholder="사건, 기억, 걱정, 감사… 무엇이든 좋아요.">${escapeHtml(state.notes)}</textarea><div class="rowbtn"><button class="button primary" data-action="next">글감 찾기 →</button></div>`;
  if(s===1)h=`<div class="stagehead">글감 찾기</div><p class="stage-desc">마음에 닿는 문장이 있다면 그곳에서 시작해 보세요.</p><div class="stagequote" id="topicQuote">${escapeHtml(state.topic||prompts[0])}</div><button class="button secondary" data-action="shuffle">↻ 다른 글감 보여주기</button><label class="lab">나만의 글감</label><input class="field" id="topic" placeholder="직접 떠올린 주제도 좋아요" value="${escapeHtml(state.topic)}"><div class="rowbtn"><button class="button primary" data-action="next">문장 쓰기 →</button><button class="button subtle" data-action="prev">← 돌아가기</button></div>`;
- if(s===2)h=`<div class="stagehead">나의 문장 만들기</div><p class="stage-desc">부담 없이 적고, 나누고 싶은 만큼만 나누어요. 글은 이 기기에 자동 저장돼요.</p><label class="lab">제목</label><input class="field" id="storyTitle" maxlength="80" placeholder="아직 제목 없는 이야기" value="${escapeHtml(state.title)}"><label class="lab">본문</label><textarea class="field big" id="story" placeholder="오늘 밤에는 이런 이야기를 남기고 싶어요…">${escapeHtml(state.story)}</textarea><div class="timer"><small class="muted" id="len">${state.story.length} 글자 · 기기에 자동 저장</small><strong id="time">${timeFormat(state.timer)}</strong></div><div class="rowbtn"><button class="button secondary" data-action="timer">${state.running?'Ⅱ 타이머 멈추기':'▷ 20분 글쓰기 타이머'}</button><button class="button secondary" data-action="download">↓ 나의 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기</button><button class="button primary" data-action="next">낭독하기 →</button></div>`;
+ if(s===2)h=`<div class="stagehead">나의 문장 만들기</div><p class="stage-desc">부담 없이 적고, 나누고 싶은 만큼만 나누어요. 글은 이 기기에 자동 저장돼요.</p><label class="lab">제목</label><input class="field" id="storyTitle" maxlength="80" placeholder="아직 제목 없는 이야기" value="${escapeHtml(state.title)}"><label class="lab">본문</label><textarea class="field big" id="story" placeholder="오늘 밤에는 이런 이야기를 남기고 싶어요…">${escapeHtml(state.story)}</textarea><div class="timer"><small class="muted" id="len">${charCount(state.story).toLocaleString()} / ${SHELF_MAX_CHARS.toLocaleString()}자 · 초안 자동 저장</small><strong id="time">${timeFormat(state.timer)}</strong></div><div class="rowbtn"><button class="button secondary" data-action="timer">${state.running?'Ⅱ 타이머 멈추기':'▷ 20분 글쓰기 타이머'}</button><button class="button secondary" data-action="download">↓ 나의 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기</button><button class="button primary" data-action="next">낭독하기 →</button></div>`;
  if(s===3)h=`<div class="stagehead">함께 읽는 밤</div><p class="stage-desc">글이 완벽하지 않아도 괜찮아요. 누군가의 마음을 듣는 것만으로 이 공간은 따뜻해져요.</p><div class="stagequote">“부끄러워도 괜찮아요. 당신의 문장을 소중하게 듣겠습니다.”</div><div class="rowbtn"><button class="button primary" data-action="self">📖 모두에게 내 글 나누기</button><button class="button secondary" data-action="request">♡ 진행자에게 대신 읽기 부탁하기</button></div><p class="muted">공유하면 다른 사람에게 책 도착 알림이 뜹니다. 각자 원할 때 책을 펼쳐 읽을 수 있어요. 음성 대화를 쓰려면 ‘함께’ 탭에서 마이크를 연결하세요. 마이크 없이도 기기 읽기 기능을 사용할 수 있어요.</p><div class="rowbtn"><button class="button subtle" data-action="prev">← 글 수정하기</button><button class="button secondary" data-action="download">↓ 내 글 저장</button><button class="button secondary" data-action="shelf">📚 내 글 책장에 꽂기</button></div>`;
- $('#writingContent').innerHTML=h;$$('.steps button').forEach(b=>b.classList.toggle('active',+b.dataset.step===s));}
+ $('#writingContent').innerHTML=draftToolbar+h;$$('.steps button').forEach(b=>b.classList.toggle('active',+b.dataset.step===s));}
 function timeFormat(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
 function setStep(i){state.step=clamp(i,0,3);playSound();renderWriting()}
 $$('[data-step]').forEach(b=>b.onclick=()=>setStep(+b.dataset.step));
-$('#writingContent').addEventListener('input',e=>{if(e.target.id==='notes')state.notes=e.target.value;else if(e.target.id==='topic'){state.topic=e.target.value;$('#topicQuote').textContent=state.topic||prompts[0];}else if(e.target.id==='storyTitle')state.title=e.target.value;else if(e.target.id==='story'){state.story=e.target.value;$('#len').textContent=state.story.length+' 글자 · 기기에 자동 저장'}persist()});
+$('#writingContent').addEventListener('change',e=>{if(e.target.id==='draftSelect')switchDraft(e.target.value)});
+$('#writingContent').addEventListener('input',e=>{if(e.target.id==='notes')state.notes=e.target.value;else if(e.target.id==='topic'){state.topic=e.target.value;$('#topicQuote').textContent=state.topic||prompts[0];}else if(e.target.id==='storyTitle'){state.title=e.target.value;const opt=$('#draftSelect')?.selectedOptions?.[0];if(opt)opt.textContent=(state.title.trim()||'제목 없는 글')+' · 오늘';}else if(e.target.id==='story'){state.story=e.target.value;$('#len').textContent=charCount(state.story).toLocaleString()+' / '+SHELF_MAX_CHARS.toLocaleString()+'자 · 초안 자동 저장'}persist()});
 $('#writingContent').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;switch(b.dataset.action){
  case 'next':setStep(state.step+1);break;case 'prev':setStep(state.step-1);break;
  case 'shuffle':state.topic=prompts[Math.floor(Math.random()*prompts.length)];renderWriting();playSound('spark');break;
  case 'timer':state.running=!state.running;renderWriting();toast(state.running?'20분 글쓰기를 시작했어요.':'타이머를 멈췄어요.');break;
+ case 'newDraft':newDraft();break;case 'deleteDraft':deleteDraft();break;
  case 'download':downloadWriting();break;case 'shelf':publishToShelf();break;
  case 'self':case 'request':if(!state.story.trim()){toast('먼저 나의 글을 작성해 주세요.');setStep(2);break}send({t:'reading',title:state.title,text:state.story,mode:b.dataset.action});break;
  }});
@@ -572,14 +642,15 @@ function updateProximityHint(){
 // V14.9: reliable shared bookshelf. Server acknowledgement is authoritative;
 // draft text is always kept locally and is never published automatically.
 const libraryState={open:false,id:null,page:0,books:[],publishedIds:new Set(),room:''};
+const BOOKSHELF_LIMIT=100;
 let shelfPending=null,shelfTimer=null;
 const libraryCacheKey=code=>'amateur-writing-shelf-v1-'+code;
 function sanitizeShelfBook(b){
  if(!b||typeof b.id!=='string'||typeof b.title!=='string'||typeof b.text!=='string'||typeof b.author!=='string')return null;
- return {id:b.id.slice(0,64),title:b.title.slice(0,80),text:b.text.slice(0,10000),author:b.author.slice(0,18),createdAt:Number(b.createdAt)||0};
+ return {id:b.id.slice(0,64),title:b.title.slice(0,80),text:b.text,author:b.author.slice(0,18),createdAt:Number(b.createdAt)||0,sourceDraftId:typeof b.sourceDraftId==='string'?b.sourceDraftId.slice(0,80):'',updatedAt:Number(b.updatedAt)||0};
 }
 function cacheLibrary(){
- try{localStorage.setItem(libraryCacheKey(state.code),JSON.stringify(libraryState.books.slice(-64)))}catch(e){}
+ try{localStorage.setItem(libraryCacheKey(state.code),JSON.stringify(libraryState.books.slice(-BOOKSHELF_LIMIT)))}catch(e){}
 }
 function shelfFeedback(text,kind='info'){
  const el=$('#libraryFeedback');
@@ -603,9 +674,10 @@ function syncLibrary(code,serverBooks){
  if(!Array.isArray(local))local=[];
  const live=(Array.isArray(serverBooks)?serverBooks:[]).map(sanitizeShelfBook).filter(Boolean);
  libraryState.publishedIds=new Set(live.map(b=>b.id));
- const map=new Map();for(const b of local.map(sanitizeShelfBook).filter(Boolean))map.set(b.id,b);
+ const publishedSources=new Set(live.map(b=>b.sourceDraftId).filter(Boolean));
+ const map=new Map();for(const b of local.map(sanitizeShelfBook).filter(Boolean))if(!b.sourceDraftId||!publishedSources.has(b.sourceDraftId))map.set(b.id,b);
  for(const b of live)map.set(b.id,b);
- libraryState.books=[...map.values()].sort((a,b)=>a.createdAt-b.createdAt).slice(-64);
+ libraryState.books=[...map.values()].sort((a,b)=>a.createdAt-b.createdAt).slice(-BOOKSHELF_LIMIT);
  if(libraryState.books.length)libraryState.id=libraryState.books.at(-1).id;
  cacheLibrary();refreshLibraryBook();
 }
@@ -614,7 +686,7 @@ function receiveLibraryBook(raw){
  libraryState.publishedIds.add(book.id);
  const existing=libraryState.books.findIndex(b=>b.id===book.id);
  if(existing<0)libraryState.books.push(book);else libraryState.books[existing]=book;
- libraryState.books=libraryState.books.sort((a,b)=>a.createdAt-b.createdAt).slice(-64);
+ libraryState.books=libraryState.books.sort((a,b)=>a.createdAt-b.createdAt).slice(-BOOKSHELF_LIMIT);
  // Don't tear another reader away from the current page just because somebody published.
  if(!libraryState.id)libraryState.id=book.id;
  cacheLibrary();refreshLibraryBook();
@@ -635,7 +707,7 @@ function shelfSaved(reply){
  if(reply.storage==='temporary'){
   shelfFeedback(`『${book.title}』을(를) 임시 책장에 공유했습니다. 서버 저장 공간에 문제가 있어 이 기기에는 보관되지만 서버가 재시작되면 다른 멤버에게 다시 공유해야 할 수 있어요. (${reply.reason||'서버 파일 저장 불가'})`,'warning');
  }else{
-  shelfFeedback(`『${book.title}』을(를) 책장에 저장했습니다. 같은 모임방의 멤버도 읽을 수 있어요. 단, Render 무료 서버는 재배포 시 저장 파일이 사라질 수 있습니다.`,'success');
+  shelfFeedback(`『${book.title}』을(를) ${reply.updated?'책장에서 수정':'새 책으로 저장'}했습니다. 현재 서가에 ${libraryState.books.length}권이 있어요. 다른 멤버도 읽을 수 있습니다. 단, Render 무료 서버는 재배포 시 저장 파일이 사라질 수 있습니다.`,'success');
  }
  playSound('reading');
 }
@@ -646,39 +718,42 @@ function shelfFailed(text,requestId){
 }
 function publishToShelf(book=null){
  if(!state.connected){shelfFeedback('먼저 모임방에 접속해 주세요.','error');return}
- if(shelfPending){shelfFeedback('이미 저장 중입니다. 완료 안내를 확인해 주세요.','loading');return}
- // The editor may still have the newest text (IME composition/mobile keyboard).
+ if(shelfPending){shelfFeedback('이미 저장 요청을 처리 중입니다. 현재 작업이 끝날 때까지 기다려 주세요.','loading');return}
+ // IME/mobile keyboards may still contain the newest uncommitted text.
  const currentText=book?book.text:($('#story')?.value??state.story);
  const currentTitle=book?book.title:($('#storyTitle')?.value??state.title);
- const body=String(currentText||'').trim(),title=String(currentTitle||'').trim().slice(0,80)||'제목 없는 글';
- if(!body){shelfFeedback('저장할 본문이 없습니다. 글쓰기의 03단계에서 글을 작성하고 다시 눌러 주세요.','error');toast('본문을 먼저 작성해야 책장에 등록할 수 있어요.');setStep(2);return}
- if(body.length>10000){shelfFeedback('책장에는 최대 1만 글자까지 등록할 수 있어요.','error');return}
- const requestId='book-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12);
- const payload={t:'shelfAdd',requestId,title,text:body};
- const byteCount=new TextEncoder().encode(JSON.stringify(payload)).length;
- if(byteCount>30000){shelfFeedback('한 번에 보낼 수 있는 용량을 초과했습니다. 글을 두 부분으로 나누어 등록해 주세요.','error');return}
- if(!confirm(`『${title}』을(를) 이 모임방의 모든 참가자가 읽는 책장에 공개할까요?`))return;
- // Keep the draft on this device even if the network fails after confirmation.
- if(!book){state.story=body;state.title=title;persist()}
- // Show saving status in the bookshelf even when publishing from the writing sidebar.
- // Otherwise all success/error messages remain hidden behind the closed book modal.
+ const body=String(currentText||'').trim(),title=String(currentTitle||'').trim()||'제목 없는 글';
+ // Open the visible feedback panel BEFORE checks, including character-limit errors.
+ // From the writing sidebar, errors used to be sent to a hidden bookshelf modal.
  openLibrary(true);
- if(!socket||socket.readyState!==WebSocket.OPEN){shelfFeedback('서버 연결이 끊어졌습니다. 모임방에 다시 접속한 후 저장해 주세요. 작성 중인 글은 이 기기에 보관돼 있습니다.','error');return}
+ const count=charCount(body),titleCount=charCount(title);
+ if(!body){shelfFeedback('저장할 본문이 없습니다. 「글쓰기 → 03 글쓰기」에서 글을 작성해 주세요.','error');setStep(2);return}
+ if(titleCount>80){shelfFeedback(`제목은 최대 80자까지 저장할 수 있습니다. 현재 ${titleCount}자이므로 ${titleCount-80}자를 줄여 주세요.`,'error');return}
+ if(count>SHELF_MAX_CHARS){shelfFeedback(`본문 저장 한도는 최대 ${SHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${count.toLocaleString()}자이므로 ${(count-SHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요. 초안은 삭제되지 않습니다.`,'error');return}
+ const requestId='book-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12);
+ const sourceDraftId=book?.sourceDraftId||(!book?state.activeDraftId:'');
+ const payload={t:'shelfAdd',requestId,title,text:body,sourceDraftId};
+ const byteCount=new TextEncoder().encode(JSON.stringify(payload)).length;
+ if(byteCount>SHELF_MAX_BYTES){shelfFeedback(`전송 용량 한도는 ${SHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${byteCount.toLocaleString()}바이트로 ${(byteCount-SHELF_MAX_BYTES).toLocaleString()}바이트 초과했습니다. 이 경우 글을 나누거나 일부 문자를 줄여 주세요.`,'error');return}
+ const exists=libraryState.books.some(b=>b.sourceDraftId&&b.sourceDraftId===sourceDraftId&&b.author===state.name);
+ if(!confirm(`『${title}』 (${count.toLocaleString()}자)을(를) ${exists?'책장에서 최신 내용으로 바꾸고':'새 책으로 추가해'} 이 모임방 모두에게 공개할까요?`))return;
+ if(!book){state.story=body;state.title=title;persist()}
+ if(!socket||socket.readyState!==WebSocket.OPEN){shelfFeedback('서버 연결이 끊어졌습니다. 다시 접속한 뒤 저장해 주세요. 초안은 이 기기에 남아 있습니다.','error');return}
  shelfPending={requestId,title};shelfBusy(true);
- shelfFeedback(`『${title}』을(를) 서버에 저장하는 중입니다. 완료 또는 오류 메시지가 여기에 표시됩니다.`,'loading');
- try{socket.send(JSON.stringify(payload))}catch(e){shelfFailed('전송에 실패했습니다. 연결 상태를 확인해 주세요. 작성한 글은 보관돼 있습니다.',requestId);return}
- // If the acknowledgement was lost, retry with the SAME id. Server dedupes it.
+ shelfFeedback(`『${title}』 (${count.toLocaleString()}자)을(를) 서버에 저장하는 중입니다. 성공/실패는 여기에 표시됩니다.`,'loading');
+ try{socket.send(JSON.stringify(payload))}catch(e){shelfFailed('전송 실패: 네트워크 연결을 확인해 주세요. 초안은 이 기기에 남아 있습니다.',requestId);return}
  shelfTimer=setTimeout(()=>{
   if(shelfPending?.requestId!==requestId)return;
   if(socket?.readyState===WebSocket.OPEN){
-   shelfFeedback('서버 응답이 지연되어 저장을 다시 확인하고 있어요. 중복 등록하지 않습니다.','loading');
+   shelfFeedback('서버 응답이 지연되어 동일한 요청으로 저장 상태를 다시 확인하고 있어요. 중복 등록하지 않습니다.','loading');
    try{socket.send(JSON.stringify(payload))}catch(e){}
   }
   shelfTimer=setTimeout(()=>{
-   if(shelfPending?.requestId===requestId)shelfFailed('서버에서 저장 확인이 오지 않았습니다. GitHub 저장소 루트의 server.js와 public/game.js가 함께 배포되었는지 확인하세요. 작성한 글은 이 기기에 남아 있습니다.',requestId);
+   if(shelfPending?.requestId===requestId)shelfFailed('서버가 19초 안에 저장 결과를 보내지 않았습니다. Render 배포 상태와 GitHub 루트의 server.js 및 public/game.js 버전을 확인해 주세요. 초안은 보관돼 있습니다.',requestId);
   },10000);
  },9000);
 }
+
 function refreshLibraryBook(){
  const holder=$('#libraryChoices');if(!holder)return;
  holder.textContent='';
@@ -699,7 +774,7 @@ function refreshLibraryBook(){
  const pages=b?paginateBook(b.text,300):['작성한 글을 책장에 꽂으면 여기에 펼쳐집니다.'];
  libraryState.page=Math.min(Math.max(0,libraryState.page),pages.length-1);
  $('#libraryBody').textContent=pages[libraryState.page];
- $('#libraryProgress').textContent=b?`${libraryState.page+1} / ${pages.length}쪽`:'0권';
+ $('#libraryProgress').textContent=b?`${libraryState.books.length}권 · ${libraryState.page+1} / ${pages.length}쪽`:'0권';
  $('#libraryPrev').disabled=!b||libraryState.page===0;
  $('#libraryNext').disabled=!b||libraryState.page>=pages.length-1;
  shelfBusy(!!shelfPending);

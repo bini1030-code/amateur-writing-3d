@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.12.0",
+  "version": "14.13.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D v14.12 - 책장 저장 응답·배포 확인·오류 가독성 수정",
+  "description": "아마추어 글쓰기 3D v14.13 - 여러 글 관리 · 책장 여러 권 · 한글 만 자 저장 및 정확한 실패 안내",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
