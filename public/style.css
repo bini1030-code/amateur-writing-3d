@@ -333,3 +333,64 @@
 .draftManagerActions{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}.draftManagerActions button{flex:1;padding:9px 10px;font-size:11px;min-width:90px}
 .draftStorageError{margin:9px 0 0;color:#821c22;background:#fff0f0;border:1px solid #a52d35;border-radius:8px;padding:10px;font-size:12px;font-weight:700;line-height:1.5}
 @media(max-width:700px){.draftManager{padding:11px}.draftManager select.field{font-size:16px}}
+
+
+/* v14.14 — two-step shared book catalog: covers first, page reader on click */
+.libraryCard{width:min(850px,100%);max-height:min(92dvh,850px)}
+.libraryShelfView[hidden],.libraryReaderView[hidden]{display:none!important}
+.libraryGalleryTools{display:flex;gap:18px;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-top:17px}
+.libraryGallerySummary{display:flex;flex-direction:column;gap:3px;line-height:1.35}
+.libraryGallerySummary strong{font-size:15px;color:#544048}
+.libraryGallerySummary small{font-size:11px;color:#86736c}
+.librarySearchLabel{display:flex;flex-direction:column;gap:4px;color:#725d5b;font-size:11px;font-weight:750;min-width:min(235px,100%)}
+.librarySearchLabel input{width:100%;border:1px solid #cfb6aa;background:#fffdf9;color:#3e3231;font-size:13px;padding:10px 12px;border-radius:10px;outline-offset:2px}
+.librarySearchLabel input:focus{outline:2px solid #9c7894}
+.libraryChoices.libraryBookGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(134px,1fr));gap:15px;max-height:min(49dvh,445px);overflow-y:auto;overflow-x:hidden;padding:13px 6px 18px;margin:8px 0 12px;align-items:stretch;align-content:start;scrollbar-gutter:stable}
+.libraryChoices.libraryBookGrid .libraryBookTile{display:flex;flex-direction:column;align-items:stretch;min-width:0;max-width:none;gap:4px;padding:0;text-align:left;border:0;border-radius:12px;background:transparent;color:#49383c;box-shadow:none;cursor:pointer}
+.libraryBookTile:focus-visible{outline:3px solid #b27ba1;outline-offset:4px}
+.libraryBookCover{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:7px;min-height:194px;padding:15px 12px 12px 20px;box-sizing:border-box;border-radius:5px 11px 11px 5px;border:1px solid #5e494654;color:#fffbf4;box-shadow:inset 7px 0 7px #1d1b2440,inset -2px 0 4px #fff4ee2a,0 6px 11px #6a4b5140,2px 3px 0 #ccbbae;transition:transform .15s ease,box-shadow .15s ease}
+.libraryBookCover:before{content:'';position:absolute;inset:2px auto 2px 8px;width:1px;background:#fff7e250;box-shadow:2px 0 4px #251c1c55}
+.libraryBookTile:hover .libraryBookCover,.libraryBookTile:focus-visible .libraryBookCover{transform:translateY(-5px);box-shadow:inset 7px 0 7px #1d1b2440,inset -2px 0 4px #fff4ee2a,0 10px 17px #6a4b5155,2px 3px 0 #ccbbae}
+.libraryBookCover.tone-0{background:linear-gradient(135deg,#a86b78,#75495d)}
+.libraryBookCover.tone-1{background:linear-gradient(135deg,#77928a,#4a716d)}
+.libraryBookCover.tone-2{background:linear-gradient(135deg,#7a89b0,#4f6084)}
+.libraryBookCover.tone-3{background:linear-gradient(135deg,#b29a72,#87704d)}
+.libraryBookCover.tone-4{background:linear-gradient(135deg,#9479aa,#644d7c)}
+.libraryBookCover.tone-5{background:linear-gradient(135deg,#b07870,#84564e)}
+.libraryCoverTop{font-size:8px;line-height:1.4;letter-spacing:.4px;opacity:.8}
+.libraryCoverMotif{font-size:28px;text-align:center;opacity:.8;line-height:1.5;margin:4px auto 0}
+.libraryCoverTitle{font:700 14px/1.35 'Noto Serif KR',Georgia,serif;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:19px;text-align:center;color:#fffaf1}
+.libraryCoverAuthor{font-size:11px;line-height:1.5;text-align:center;overflow-wrap:anywhere;color:#fff9ee}
+.libraryCoverBottom{font-size:9px;opacity:.88;margin-top:auto;text-align:center;border-top:1px solid #fffaee54;padding-top:7px}
+.libraryBookTileLabel{font-weight:750;font-size:12px;line-height:1.4;color:#473a3d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:4px 2px 0}
+.libraryBookTileBy{font-size:11px;color:#78616a;padding:0 2px 3px;overflow-wrap:anywhere}
+.libraryGalleryEmpty{grid-column:1/-1;padding:28px 20px;border:1px dashed #c5aaa7;border-radius:12px;background:#fffaf7;color:#795f65;font-size:13px;line-height:1.8;text-align:center}
+.libraryReaderToolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 0 13px;color:#847076;font-size:11px}
+.libraryReaderToolbar button{background:#ede0e6;color:#5d4058;border:1px solid #cdb1c5;border-radius:9px;padding:10px 13px;cursor:pointer;font-weight:800;font-size:12px}
+.libraryReaderToolbar button:hover{background:#e3cdda}
+.libraryReaderView .libraryPaper{min-height:255px}
+.libraryBookAuthor{color:#684f5c;font-size:12px;font-weight:700}
+@media(max-width:700px){
+ .libraryCard{max-height:calc(100dvh - 24px);width:100%;padding:15px}
+ .libraryGalleryTools{gap:11px;margin-top:13px;align-items:stretch}
+ .librarySearchLabel{flex:1 1 100%;font-size:10px}
+ .librarySearchLabel input{font-size:16px}
+ .libraryChoices.libraryBookGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:min(44dvh,430px);padding:9px 4px 16px}
+ .libraryBookCover{min-height:188px;padding:12px 9px 10px 17px}
+ .libraryCoverTitle{font-size:13px}
+ .libraryBookTileLabel{font-size:11px}
+ .libraryBookTileBy{font-size:10px}
+ .libraryReaderToolbar{margin-top:15px}
+}
+@media(prefers-reduced-motion:reduce){.libraryBookCover{transition:none}}
+/* Explicit cover typography: older generic .libraryChoices button span must not enlarge every line. */
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTop{font-size:8px;letter-spacing:.4px;line-height:1.45;opacity:.85}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverMotif{font-size:26px;line-height:1.2}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:10px;line-height:1.45}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverBottom{font-size:9px;line-height:1.45}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryBookTileLabel{font-size:12px;line-height:1.4}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryBookTileBy{font-size:11px;line-height:1.4}
+@media(max-width:700px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookTileLabel{font-size:11px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookTileBy{font-size:10px}
+}

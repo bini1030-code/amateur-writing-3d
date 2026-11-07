@@ -38,22 +38,31 @@
              <p>글을 직접 책장에 꽂으면 같은 모임방의 멤버가 두 책장 어디에서나 펼쳐 읽을 수 있어요.</p></div>
           <button type="button" id="libraryClose" aria-label="책장 닫기">✕</button>
         </header>
-        <nav id="libraryChoices" class="libraryChoices" aria-label="모임원 글 목록"></nav>
-        <div class="libraryPublish">
-          <span>✍️ 지금 작성 중인 내 글을 한 권의 책으로 보관하기</span>
-          <button id="librarySave" type="button">📚 내 글 책장에 꽂기</button>
-        </div>
-        <p id="libraryFeedback" class="libraryFeedback" role="status" aria-live="polite">글은 서버 저장이 완료된 뒤 책장에 나타납니다.</p>
-        <article class="libraryPaper">
-          <div class="libraryPaperTop">✦ &nbsp; 아마추어 글쓰기 · 우리 모임의 이야기</div>
-          <h3 id="libraryBookTitle">첫 번째 책을 기다려요</h3><p id="libraryAuthor" class="libraryBookAuthor">아마추어 글쓰기 · 우리 모임의 책장</p>
-          <div class="libraryBody" id="libraryBody" tabindex="0"></div>
-          <div class="libraryPager"><button type="button" id="libraryPrev" aria-label="이전 페이지">‹ 이전</button>
-            <span id="libraryProgress" aria-live="polite">0권</span>
-            <button type="button" id="libraryNext" aria-label="다음 페이지">다음 ›</button></div>
-        </article>
-        <button id="libraryRestore" type="button" hidden>↗ 이 기기에 남은 책을 다시 공유하기</button>
-        <div id="libraryNote" class="libraryHint">저장된 책은 같은 모임방의 참가자가 두 책장 어디에서나 읽을 수 있어요.</div>
+        <section id="libraryShelfView" class="libraryShelfView" aria-label="책장에 있는 글 목록">
+          <div class="libraryGalleryTools">
+            <div class="libraryGallerySummary"><strong id="libraryCount">0권의 책</strong><small>표지를 누르면 글을 펼칠 수 있어요.</small></div>
+            <label class="librarySearchLabel" for="librarySearch"><span>제목·작성자 찾기</span><input id="librarySearch" type="search" maxlength="80" placeholder="제목이나 글쓴이 검색" autocomplete="off"></label>
+          </div>
+          <nav id="libraryChoices" class="libraryChoices libraryBookGrid" aria-label="모임원들의 책 표지 목록"></nav>
+          <div class="libraryPublish">
+            <span>✍️ 지금 작성 중인 내 글을 한 권의 책으로 보관하기</span>
+            <button id="librarySave" type="button">📚 내 글 책장에 꽂기</button>
+          </div>
+          <p id="libraryFeedback" class="libraryFeedback" role="status" aria-live="polite">책 표지를 선택해 읽거나, 작성한 글을 책장에 꽂아 보세요.</p>
+        </section>
+        <section id="libraryReaderView" class="libraryReaderView" aria-label="선택한 책 읽기" hidden>
+          <div class="libraryReaderToolbar"><button id="libraryBack" type="button">← 전체 책장으로</button><span>📖 모임원들의 글</span></div>
+          <article class="libraryPaper">
+            <div class="libraryPaperTop">✦ &nbsp; 아마추어 글쓰기 · 우리 모임의 이야기</div>
+            <h3 id="libraryBookTitle">선택한 책 제목</h3><p id="libraryAuthor" class="libraryBookAuthor">글쓴이</p>
+            <div class="libraryBody" id="libraryBody" tabindex="0"></div>
+            <div class="libraryPager"><button type="button" id="libraryPrev" aria-label="이전 페이지">‹ 이전</button>
+              <span id="libraryProgress" aria-live="polite">1 / 1쪽</span>
+              <button type="button" id="libraryNext" aria-label="다음 페이지">다음 ›</button></div>
+          </article>
+          <button id="libraryRestore" type="button" hidden>↗ 이 기기에 남은 책을 다시 공유하기</button>
+          <div id="libraryNote" class="libraryHint">같은 모임방 참가자는 두 책장에서 같은 글을 읽을 수 있어요.</div>
+        </section>
       </div>
     </section>
 
