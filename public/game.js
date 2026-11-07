@@ -75,6 +75,111 @@ function deleteDraft(){
 let burstLight=null;let socket=null,peers=new Map(),audioContext=null,toastTimer,readingRequest=null,lastNet=0,route=[],particles=[],activeKey=new Set(),microphoneStream=null,rtc=new Map(),pointer={down:false,x:0,y:0,id:null,travel:0},stick={x:0,z:0};
 const actor={x:0,z:9.1,rot:Math.PI,action:'stand',moving:false};
 const cam={yaw:0,pitch:.31,dist:4.7,followPos:null,first:false,eye:[0,0,0],center:[0,0,0],matrix:null};
+
+// Three shared 3D companion animals. Their authoritative positions and reactions
+// come from the room server, not from this browser's random number generator.
+const PET_INFO={
+ sani:{name:'산이',species:'dog',size:.72,play:'🎾 공놀이'},
+ bori:{name:'보리',species:'cat',size:.67,play:'🧶 장난감 흔들기'},
+ haetsal:{name:'햇살이',species:'kitten',size:.49,play:'🧶 장난감 흔들기'}
+};
+const petStates=new Map();
+let currentPetId='';
+function syncPets(items,immediate=false){
+ if(!Array.isArray(items))return;
+ for(const raw of items){
+  if(!PET_INFO[raw?.id]||!Number.isFinite(raw.x)||!Number.isFinite(raw.z))continue;
+  const p=petStates.get(raw.id)||{id:raw.id,rx:raw.x,rz:raw.z,rr:raw.rot||0};
+  Object.assign(p,{x:raw.x,z:raw.z,rot:raw.rot||0,mode:raw.mode||'sit',until:raw.until||0});
+  if(immediate){p.rx=p.x;p.rz=p.z;p.rr=p.rot}
+  petStates.set(raw.id,p);
+ }
+}
+function nearestPet(maxDistance=1.9){
+ let nearest=null,dist=maxDistance;
+ for(const p of petStates.values()){
+  const d=Math.hypot(actor.x-p.rx,actor.z-p.rz);
+  if(d<dist){nearest=p;dist=d}
+ }
+ return nearest?{pet:nearest,distance:dist}:null;
+}
+function petPose(p,now){
+ switch(p.mode){
+  case 'walk':return Math.floor(now/180)%2?1:2;
+  case 'run':return 10;
+  case 'sit':return 3;
+  case 'happy':return p.id==='sani'&&Math.floor(now/180)%2?12:4;
+  case 'eat':return 5;
+  case 'rub':return 6;
+  case 'stretch':return 7;
+  case 'lie':return 8;
+  case 'yawn':return 11;
+  case 'play':return 9;
+  default:return 0;
+ }
+}
+function petBounce(p,now){
+ if(p.mode==='happy')return Math.abs(Math.sin(now/170))*(p.id==='sani'?.13:.044);
+ if(p.mode==='run')return Math.abs(Math.sin(now/105))*.055;
+ return 0;
+}
+function petAction(id,action){
+ if(!state.connected){toast('모임방에 입장한 후 동물과 놀 수 있어요.');return}
+ if(!PET_INFO[id]||!['pet','treat','call','play'].includes(action))return;
+ const p=petStates.get(id);
+ if(!p||Math.hypot(actor.x-p.rx,actor.z-p.rz)>2.55){toast('동물 가까이 다가가서 다시 눌러 주세요.');return}
+ send({t:'petAction',petId:id,action});
+ hidePetMenu();
+}
+function showPetMenu(id){
+ if(!state.connected||!PET_INFO[id])return;
+ const p=petStates.get(id);
+ if(!p||Math.hypot(actor.x-p.rx,actor.z-p.rz)>2.55){toast('동물 가까이 다가가서 다시 눌러 주세요.');return}
+ currentPetId=id;
+ $('#petMenuTitle').textContent=`🐾 ${PET_INFO[id].name}와 놀기`;
+ $('#petMenuSub').textContent=id==='sani'?'부르면 폴짝 다가오고 꼬리를 흔들어요.':'다가오면 몸을 비비거나 기지개를 켜기도 해요.';
+ $('#petPlayButton').textContent=PET_INFO[id].play;
+ $('#petMenu').classList.remove('hidden');$('#petMenu').setAttribute('aria-hidden','false');
+ playSound('click');
+}
+function hidePetMenu(){const el=$('#petMenu');if(!el)return;el.classList.add('hidden');el.setAttribute('aria-hidden','true')}
+function onPetEvent(p){
+ const info=PET_INFO[p.petId];if(!info)return;
+ const pet=petStates.get(p.petId);
+ if(pet){pet.reaction={action:p.action,until:Date.now()+(p.action==='play'?3800:1800)}}
+ const verbs={pet:'쓰다듬어 주었어요 🐾',treat:'간식을 주었어요 🍪',call:'불렀어요 👋',play:p.petId==='sani'?'공놀이를 시작했어요 🎾':'장난감으로 놀아 주었어요 🧶'};
+ toast(`${p.by||'누군가'} 님이 ${info.name}를 ${verbs[p.action]||'반겨 주었어요.'}`);
+ if(p.action==='pet'||p.action==='play')playSound('heart');else if(p.action==='treat')playSound('cookie');else playSound('wave');
+}
+const petBadgeElements=new Map();
+function positionPetLabels(now){
+ if(!state.connected||!cam.matrix)return;
+ const holder=$('#petLabels');if(!holder)return;
+ for(const [id,info] of Object.entries(PET_INFO)){
+  const p=petStates.get(id);let el=petBadgeElements.get(id);
+  if(!el){
+   el=document.createElement('div');el.className='petNameplate';el.dataset.petId=id;
+   const label=document.createElement('div');label.className='petNameplateTitle';label.textContent='🐾 '+info.name;
+   const actions=document.createElement('div');actions.className='petQuickActions';
+   for(const [act,symbol,name] of [['pet','🐾','쓰다듬기'],['treat','🍪','간식 주기'],['call','👋','부르기']]){
+    const b=document.createElement('button');b.type='button';b.dataset.petAction=act;b.dataset.petId=id;b.textContent=symbol;
+    b.setAttribute('aria-label',`${info.name} ${name}`);b.title=name;actions.append(b);
+   }
+   const reaction=document.createElement('div');reaction.className='petReactionBubble';reaction.setAttribute('aria-hidden','true');
+   el.append(label,actions,reaction);holder.append(el);petBadgeElements.set(id,el);
+  }
+  const near=p&&Math.hypot(actor.x-p.rx,actor.z-p.rz)<2.2;
+  const visible=p&&Math.hypot(actor.x-p.rx,actor.z-p.rz)<10;
+  const pt=visible?screenAt([p.rx,info.size+petBounce(p,now)+.30,p.rz]):null;
+  if(!pt||pt[0]<-45||pt[0]>canvas.clientWidth+45||pt[1]<25||pt[1]>canvas.clientHeight-25){el.hidden=true;continue}
+  el.hidden=false;el.style.left=pt[0]+'px';el.style.top=pt[1]+'px';
+  el.classList.toggle('petNear',!!near);
+  const reaction=el.querySelector('.petReactionBubble');
+  const active=p.reaction&&p.reaction.until>Date.now();
+  reaction.hidden=!active;
+  if(active)reaction.textContent={pet:'💗',treat:'🍪',call:'👋',play:id==='sani'?'🎾':'🧶'}[p.reaction.action]||'🐾';
+ }
+}
 const worldLights=[
  {x:-2.6,y:3.05,z:4.9,color:'#ffdca0',size:230,alpha:.48},{x:0,y:3.05,z:4.9,color:'#ffdca0',size:255,alpha:.52},{x:2.6,y:3.05,z:4.9,color:'#ffdca0',size:230,alpha:.48},
  {x:-2.4,y:3.05,z:6.4,color:'#ffd7a2',size:215,alpha:.45},{x:0,y:3.05,z:6.4,color:'#ffd7a2',size:245,alpha:.49},{x:2.4,y:3.05,z:6.4,color:'#ffd7a2',size:215,alpha:.45},
@@ -193,7 +298,7 @@ function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($(
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':state.shelfStorage=p.shelfStorage||'unknown';state.shelfLoadError=p.shelfLoadError||'';state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.shelfSaveSupported=!!p.features?.includes('shelf-save-ack-v2');state.shelfHttpPublishSupported=!!p.features?.includes('shelf-http-publish-v1');state.serverVersion=p.serverVersion||'';state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});
+  case 'welcome':syncPets(p.pets||[],true);state.shelfStorage=p.shelfStorage||'unknown';state.shelfLoadError=p.shelfLoadError||'';state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.shelfSaveSupported=!!p.features?.includes('shelf-save-ack-v2');state.shelfHttpPublishSupported=!!p.features?.includes('shelf-http-publish-v1');state.serverVersion=p.serverVersion||'';state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});
    storageStatusNotice();
    if(state.shelfLoadError)shelfFeedback('서버 책장 목록을 불러오지 못했습니다. '+state.shelfLoadError,'error');
    if(!state.shelfManageSupported)shelfFeedback('현재 서버에 수정·삭제 기능이 없습니다. GitHub에서 server.js와 public 폴더를 함께 업로드하고 Render 배포 후 /health 버전을 확인해 주세요.','warning');
@@ -202,6 +307,9 @@ function message(p){
   case 'join':peers.set(p.person.id,{...p.person,rx:p.person.x,rz:p.person.z,rr:p.person.rot});renderPeople();addSystem(p.person.name+' 님이 모임방에 왔어요.');playSound('click');if(state.mic)offer(p.person.id);break;
   case 'leave':{let gone=peers.get(p.id);if(gone)addSystem(gone.name+' 님이 나갔어요.');peers.delete(p.id);const pc=rtc.get(p.id);if(pc){pc.close();rtc.delete(p.id)}document.getElementById('audio-'+p.id)?.remove();renderPeople();break;}
   case 'move':{const other=peers.get(p.id);if(other){other.moving=Math.hypot(other.x-p.x,other.z-p.z)>.02;other.lastMoved=performance.now();other.x=p.x;other.z=p.z;other.rot=p.rot;other.action=p.action;}break;}
+  case 'pets':syncPets(p.pets||[]);break;
+  case 'petEvent':onPetEvent(p);break;
+  case 'petError':toast(p.message||'동물과의 상호작용에 실패했어요.');break;
   case 'scene':{
     if(p.action==='lamp'){state.lampOn=p.lampOn!==false;lightPulse(6.95,10.15,state.lampOn?'#ffe5a2':'#b8c9e4',145);toast('스탠드 조명을 '+(state.lampOn?'켰어요.':'껐어요.'));playSound('click');}
     else if(p.action==='water'){const plant=wateringPlants.find(v=>v.id===p.plant);if(plant){lightPulse(plant.x,plant.z,'#b5edbd',145,'water');playSound('tea');toast((p.name||'누군가')+' 님이 식물에 물을 주었어요.');}}
@@ -630,6 +738,8 @@ function nearbyInteraction(){
   const kind=state.restSpot?.type;
   return {type:'stand',label:kind==='couch'?'카우치에서 일어나기':'의자에서 일어나기',detail:'상호작용으로 안전한 바닥에 내려와요.'}
  }
+ const nearbyAnimal=nearestPet(1.72);
+ if(nearbyAnimal){const info=PET_INFO[nearbyAnimal.pet.id];return {type:'pet',petId:nearbyAnimal.pet.id,label:info.name+'와 놀기',detail:'🐾 쓰다듬기  ·  🍪 간식 주기  ·  👋 부르기  ·  '+info.play}}
  const plant=closestWateringPlant();
  if(state.room==='main'){
   let seat=null,dist=Infinity;
@@ -686,7 +796,7 @@ let lastHintKey='';
 function updateProximityHint(){
  const hint=$('#proximityHint');if(!hint)return;
  const action=nearbyInteraction();
- const hidden=!!$('#entrance:not(.hidden)')||!!document.querySelector('.mindOverlay:not(.hidden)')||!!document.querySelector('.snackOverlay:not(.hidden)')||!!document.querySelector('.libraryOverlay:not(.hidden)');
+ const hidden=!!$('#petMenu:not(.hidden)')||!!$('#entrance:not(.hidden)')||!!document.querySelector('.mindOverlay:not(.hidden)')||!!document.querySelector('.snackOverlay:not(.hidden)')||!!document.querySelector('.libraryOverlay:not(.hidden)');
  if(!action||hidden){hint.hidden=true;lastHintKey='';return}
  const key=action.type+action.label;
  if(lastHintKey!==key){
@@ -695,7 +805,7 @@ function updateProximityHint(){
   const icon=$('#proximityIcon');icon.innerHTML=ICON_LIBRARY[action.type]||'✦';
   const chips=$('#proximityChoices');chips.textContent='';
   const choices=action.type==='snacks'?[['🍵','차 마시기'],['🍪','과자 먹기'],['🍬','젤리 먹기']]:
-    action.type==='water'?[['🪴','화분에 물주기']]:action.type==='bookshelf'?[['📚','우리 글 읽기 · 꽂기']]:action.type==='mind'?[['💭','내 마음 알아보기'],['☾','내 마음 몰라보기']]:action.type==='face'?[['🪞','얼굴 이야기 읽기']]:[];
+    action.type==='water'?[['🪴','화분에 물주기']]:action.type==='bookshelf'?[['📚','우리 글 읽기 · 꽂기']]:action.type==='mind'?[['💭','내 마음 알아보기'],['☾','내 마음 몰라보기']]:action.type==='face'?[['🪞','얼굴 이야기 읽기']]:action.type==='pet'?[['🐾','쓰다듬기'],['🍪','간식'],['👋','부르기']]:[];
   for(const [emoji,title] of choices){const chip=document.createElement('span');chip.className='proximityChoice';
    const art=document.createElement('span');art.textContent=emoji;const text=document.createElement('span');text.textContent=title;
    chip.append(art,text);chips.append(chip)}
@@ -1319,6 +1429,7 @@ $('#faceInfoToWrite').onclick=()=>{const face=faceStories[currentFaceKey]; if(!f
 function interact(){
  const choice=nearbyInteraction();
  if(!choice){toast('가구 가까이 가면 가능한 상호작용이 나타나요.');return}
+ if(choice.type==='pet'){showPetMenu(choice.petId);return}
  if(choice.type==='stand'){standUp();return}
  if(choice.type==='chair'){sit();return}
  if(choice.type==='snacks'){showSnackMenu();return}
@@ -1332,7 +1443,7 @@ function interact(){
 
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#libraryModal').classList.contains('hidden')){if(libraryState.editing)cancelLibraryEditor();else if(libraryState.view==='reader')returnToLibraryGallery();else closeLibrary()}else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#petMenu').classList.contains('hidden'))hidePetMenu();else if(!$('#libraryModal').classList.contains('hidden')){if(libraryState.editing)cancelLibraryEditor();else if(libraryState.view==='reader')returnToLibraryGallery();else closeLibrary()}else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAmbient();else startAmbient()});
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
@@ -1408,6 +1519,10 @@ let lastLightPaint=0;function renderLightGlows(){const timestamp=performance.now
 function screenLabels(){if(!state.connected)return;const labels=[];for(const door of [{x:-5.6,z:-1.0,t:'☕ 다과룸'},{x:5.6,z:-1.0,t:'✧ 여섯 얼굴의 방'}]){
  if(Math.hypot(actor.x-door.x,actor.z-door.z)<8){const loc=screenAt([door.x,2.93,door.z]);if(loc&&loc[0]>20&&loc[0]<canvas.clientWidth-20&&loc[1]>90&&loc[1]<canvas.clientHeight-30)labels.push(`<div class="door-label" style="left:${loc[0]}px;top:${loc[1]}px">${door.t}</div>`)}}
  for(const p of peers.values()){if(p.id===state.me&&cam.first)continue;const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz;const pt=screenAt([x,2.25,z]);if(!pt||pt[0]<-30||pt[0]>canvas.clientWidth+30||pt[1]<60||pt[1]>canvas.clientHeight)continue;const txt=p.bubble&&p.bubbleEnd>Date.now()?p.bubble:(p.id===state.me?'나 · '+p.name:p.name);labels.push(`<div class="world-label ${p.id===state.me?'me':''}" style="left:${pt[0]}px;top:${pt[1]}px">${escapeHtml(txt)}</div>`)}$('#worldlabels').innerHTML=labels.join('')}
+$('#petMenuClose').onclick=hidePetMenu;
+$('#petMenu').addEventListener('click',e=>{if(e.target.id==='petMenu')hidePetMenu();const b=e.target.closest('[data-pet-choice]');if(b)petAction(currentPetId,b.dataset.petChoice)});
+$('#petLabels').addEventListener('click',e=>{const b=e.target.closest('button[data-pet-action]');if(b)petAction(b.dataset.petId,b.dataset.petAction)});
+let lastPetHud=0;
 let lastFrame=0,lastStepAt=0;
 function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame=now;
  const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight),dpr=Math.min(matchMedia('(max-width:700px)').matches?1.25:1.5,devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);if(gl)gl.viewport(0,0,canvas.width,canvas.height)}
@@ -1415,13 +1530,26 @@ function frame(now){const dt=Math.min(.045,(now-lastFrame)/1000||.016);lastFrame
  updateProximityHint();
  cameraUpdate(dt);
  positionReactionBadges();
+ for(const p of petStates.values()){p.rx+=(p.x-p.rx)*Math.min(1,dt*9);p.rz+=(p.z-p.rz)*Math.min(1,dt*9);let delta=Math.atan2(Math.sin(p.rot-p.rr),Math.cos(p.rot-p.rr));p.rr+=delta*Math.min(1,dt*9)}
+ if(now-lastPetHud>75){positionPetLabels(now);lastPetHud=now}
  if(gl){gl.uniform1f(uStandLampOn,state.lampOn?1:0);if(burstLight&&now<burstLight.end){const color=burstLight.kind==='heart'?[1,.38,.55]:burstLight.kind==='jelly'?[.93,.54,.94]:burstLight.kind==='tea'?[.68,1,.60]:[1,.84,.54];gl.uniform3f(uFxPos,burstLight.x,burstLight.y,burstLight.z);gl.uniform3fv(uFxColor,new Float32Array(color));gl.uniform1f(uFxPower,Math.max(0,(burstLight.end-now)/1000)*2.1);}else{gl.uniform1f(uFxPower,0);}gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(staticBuffer,cam.matrix);draw(state.lampOn?lampBulbOnBuffer:lampBulbOffBuffer,cam.matrix);if(state.connected){for(const p of peers.values()){if((cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85)&&p.id===state.me)continue;
   if(p.id!==state.me){p.rx+=(p.x-p.rx)*Math.min(1,dt*11);p.rz+=(p.z-p.rz)*Math.min(1,dt*11);p.rr+=(p.rot-p.rr)*Math.min(1,dt*10)}
   const x=p.id===state.me?actor.x:p.rx,z=p.id===state.me?actor.z:p.rz,rot=p.id===state.me?actor.rot:p.rr;
   const isMe=p.id===state.me,action=(isMe?actor.action:p.action),isSitting=action==='sit',isLying=action==='lie';const isWalking=isMe?actor.moving:(p.moving&&now-p.lastMoved<280);const pose=isLying?5:isSitting?4:isWalking?1+(Math.floor(now/170)%3):0;const gender=(p.gender==='female'?'female':'male');const m=(avatars[gender][p.color]||avatars[gender][0])[pose],model=modelMat(x,isLying?.67:0,z,rot);draw(m,mul(cam.matrix,model),model)}
  }
+  for(const p of petStates.values()){
+   const pose=petPose(p,now),mesh=petMeshes[p.id]?.[pose];if(!mesh)continue;
+   const model=modelMat(p.rx,petBounce(p,now),p.rz,p.rr);
+   draw(mesh,mul(cam.matrix,model),model);
+   if(p.reaction?.action==='play'&&p.reaction.until>Date.now()){
+    const toy=p.id==='sani'?petToyMeshes.ball:petToyMeshes.yarn;
+    const tx=p.rx+Math.sin(p.rr)*.43,tz=p.rz+Math.cos(p.rr)*.43;
+    const toyModel=modelMat(tx,Math.abs(Math.sin(now/185))*.035,tz,p.rr);
+    draw(toy,mul(cam.matrix,toyModel),toyModel);
+   }
+  }
  }
- if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>{const action=p.id===state.me?actor.action:p.action;return {self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action,py:action==='lie'?.67:0,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(action==='lie'?5:action==='sit'?4:0)}});drawSoftware(now,players,cam,particles,state.lampOn)}
+ if(!gl && softCtx && state.connected){const players=[...peers.values()].map(p=>{const action=p.id===state.me?actor.action:p.action;return {self:p.id===state.me&&(cam.first||Math.hypot(cam.eye[0]-actor.x,cam.eye[2]-actor.z)<2.85),x:p.id===state.me?actor.x:p.rx,z:p.id===state.me?actor.z:p.rz,rot:p.id===state.me?actor.rot:p.rr,color:p.color,gender:p.gender,action,py:action==='lie'?.67:0,pose:(p.id===state.me?actor.moving:(p.moving&&now-p.lastMoved<280))?1+(Math.floor(now/170)%3):(action==='lie'?5:action==='sit'?4:0)}});drawSoftware(now,players,cam,particles,state.lampOn,[...petStates.values()].map(p=>({id:p.id,x:p.rx,z:p.rz,rot:p.rr,py:petBounce(p,now),pose:petPose(p,now),toy:p.reaction?.action==='play'&&p.reaction.until>Date.now()?(p.id==='sani'?'ball':'yarn'):null})))}
  renderLightGlows();
  if(now%120<30)screenLabels();requestAnimationFrame(frame)}
 // WebRTC mesh voice: opt-in microphone, P2P audio. HTTPS/local-only; restricted NAT may require TURN.

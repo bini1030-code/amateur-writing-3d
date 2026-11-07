@@ -4,11 +4,12 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const petsEngine=require('./pets-server');
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
-const APP_VERSION = '14.24.0';
+const APP_VERSION = '14.26.0';
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
@@ -28,7 +29,9 @@ const REMOTE_MISCONFIGURED=!!(SUPABASE_URL||SUPABASE_SECRET_KEY)&&!REMOTE_ENABLE
 const STORAGE_MODE=REMOTE_ENABLED?'supabase':(process.env.BOOKSHELF_DATA_DIR?'configured-directory':'ephemeral');
 const remoteLoaded=new Set(),remoteLoading=new Map(),shelfLocks=new Map();
 function storageProblem(e){
- const msg=String(e?.message||'저장 요청에 실패했습니다.').slice(0,250);
+ let raw=String(e?.message||'저장 요청에 실패했습니다.');
+ if(SUPABASE_SECRET_KEY)raw=raw.split(SUPABASE_SECRET_KEY).join('[비밀 키 보호]');
+ const msg=raw.slice(0,250);
  return '공개 책 영구 저장소에 접속하거나 기록하지 못했습니다. '+msg+' Render의 SUPABASE_URL, SUPABASE_SECRET_KEY 및 Supabase 테이블 설정을 확인해 주세요.';
 }
 function withShelfLock(code,fn){
@@ -235,6 +238,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))
     try{await ensureRoomLoaded(code)}catch(e){shelfLoadError=storageProblem(e);console.error('책장 초기화 실패:',e.message)}
     if(c.socket.destroyed)return;
     let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],books:savedBooks.get(code)||[],lampOn:true,emptyAt:0};rooms.set(code,room)}
+    if(!room.pets)room.pets=petsEngine.makePets();
     room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
@@ -250,7 +254,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))
       if(ix>=0)editableBookKeyIndices[book.id]=ix;
     }
     const editableBookIds=Object.keys(editableBookKeyIndices);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:shelfLoadError?[]:room.books.map(publicBook),deletedBookIds:deletedBooks.get(code)||[],editableBookIds,editableBookKeyIndices,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,shelfStorage:STORAGE_MODE,shelfLoadError,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000','shelf-manage-v1','shelf-owner-multikey-v1','shelf-http-publish-v1']});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:shelfLoadError?[]:room.books.map(publicBook),deletedBookIds:deletedBooks.get(code)||[],editableBookIds,editableBookKeyIndices,lampOn:room.lampOn!==false,pets:petsEngine.publicPets(room),limit:LIMIT,serverVersion:APP_VERSION,shelfStorage:STORAGE_MODE,shelfLoadError,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000','shelf-manage-v1','shelf-owner-multikey-v1','shelf-http-publish-v1','three-pets-v1']});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -271,6 +275,15 @@ async function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))
         if(room.history.length>CHAT_HISTORY_LIMIT)room.history.splice(0,room.history.length-CHAT_HISTORY_LIMIT);
         broadcast(room,{t:'chat',...entry});
       }
+      break;
+    }
+    case 'petAction':{
+      if(!rate(c,'petAction',700))return;
+      const id=safeStr(msg.petId,20),action=safeStr(msg.action,15);
+      const result=petsEngine.act(room,id,action,c);
+      if(result.error){send(c,{t:'petError',message:result.error});break}
+      broadcast(room,result.event);
+      broadcast(room,{t:'pets',pets:petsEngine.publicPets(room)});
       break;
     }
     case 'scene':{
@@ -404,6 +417,16 @@ server.on('upgrade',(req,socket)=>{
   });
   socket.on('error',()=>{});socket.on('close',()=>leave(c));
 });
+// One roaming state per room, shared between all connected visitors.
+// No animal state is written into the writing bookshelf or Supabase data.
+const petClock=setInterval(()=>{
+ const now=Date.now();
+ for(const room of rooms.values()){
+  if(!room.clients.size||!room.pets)continue;
+  for(const pet of room.pets)petsEngine.advance(pet,now);
+  broadcast(room,{t:'pets',pets:petsEngine.publicPets(room)});
+ }
+},180);petClock.unref();
 const cleanup=setInterval(()=>{
   const now=Date.now();
   for(const r of rooms.values()){

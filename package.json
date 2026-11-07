@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.24.0",
+  "version": "14.26.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D — 글쓴이별 책장 · 끊김 없는 스크롤 읽기 · Supabase 영구 저장",
+  "description": "아마추어 글쓰기 3D — 글쓴이별 책장 · 스크롤 읽기 · 산이·보리·햇살이 자유 배회 · Supabase 영구 저장",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

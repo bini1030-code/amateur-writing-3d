@@ -392,16 +392,122 @@ function makeAvatar(color,pose=0,gender='male'){
  return {...createBuffer(m),original:m};
 }
 const avatars={male:Array.from({length:6},(_,color)=>Array.from({length:6},(_,pose)=>makeAvatar(color,pose,'male'))),female:Array.from({length:6},(_,color)=>Array.from({length:6},(_,pose)=>makeAvatar(color,pose,'female')))};
+
+// V14.26: three lightweight, real 3D animal companions. All geometry is drawn
+// with this project's existing WebGL mesh renderer (no image billboards).
+const petSpecifications={
+ sani:{kind:'dog',scale:1},
+ bori:{kind:'cat',scale:1},
+ haetsal:{kind:'cat',scale:.72}
+};
+function makePetMesh(id,pose=0){
+ const spec=petSpecifications[id],isDog=spec.kind==='dog',baby=id==='haetsal';
+ const m=new Mesh(),el=(...a)=>{a[7]=Math.min(a[7]||14,14);a[8]=Math.min(a[8]||9,9);m.ellipsoid(...a)},limb=(...a)=>m.limb(...a);
+ const move=pose===1||pose===2||pose===10,run=pose===10,step=pose===1?1:pose===2?-1:0;
+ const sit=pose===3||pose===11,excited=pose===4||pose===12,eating=pose===5,rub=pose===6,stretch=pose===7,sleep=pose===8,play=pose===9,yawn=pose===11;
+ const fur=isDog?'#f5f0e6':'#f9f3e9',ginger=baby?'#e3a86d':'#c58a5d',ear=isDog?'#d3b594':ginger;
+ const down=sleep?.14:0,bodyY=isDog?(sit?.28:sleep?.19:.32):(sit?.29:sleep?.19:.30);
+ // Round body, visible from top-down camera; colored back patches match Bori's photo.
+ el(0,bodyY,-.055,isDog?.25:.255,sleep?.125:.205,isDog?.365:.38,fur,18,13);
+ if(isDog){
+  el(0,bodyY+.09,-.055,.235,.185,.33,'#fffaf1',17,11);
+  el(0,bodyY+.055,-.21,.19,.15,.21,'#f1e9dc',15,11);
+ }else{
+  el(0,bodyY+.115,-.18,.245,.145,.27,ginger,19,12);
+  el(-.19,bodyY+.06,-.02,.096,.11,.185,ginger,14,9);
+  el(.20,bodyY+.07,-.13,.078,.12,.13,ginger,14,9);
+  el(0,bodyY+.04,.17,.17,.17,.18,fur,15,11);
+ }
+ for(const side of [-1,1]){
+  const x=side*(isDog?.165:.175);
+  for(const front of [-1,1]){
+   let z=(front===1?.255:-.27),y=sleep?.11:.16;
+   const lift=move&&front===step*side?.067:0;
+   if(stretch&&front===1){z+=.19;y=.125}
+   if(sit&&front===-1){z=-.30;y=.18}
+   el(x,y+lift,z,isDog?.089:.077,sit&&front===-1?.14:.145,isDog?.101:.086,isDog?'#f7f1e8':'#fff4ea',13,10);
+   el(x,y-.095+lift,z+.035,.105,.065,.121,'#fff8ed',12,9);
+  }
+ }
+ const hy=(isDog?.50:.49)+(sleep?-.19:0)+(stretch?-.11:0)+(excited?.028:0),hz=isDog?.34:.345;
+ // Head bicolor detail: orange forehead and ears, white muzzle + cheeks.
+ el(0,hy,hz,isDog?.238:.228,isDog?.215:.205,isDog?.221:.205,isDog?'#fff9f0':ginger,24,16);
+ if(!isDog){
+  el(0,hy-.068,hz+.105,.219,.151,.146,'#fff6ec',20,13);
+  el(-.145,hy-.024,hz+.103,.075,.142,.11,fur,16,11);
+  el(.147,hy-.02,hz+.106,.071,.137,.10,fur,16,11);
+  el(0,hy+.100,hz+.170,.065,.074,.030,ginger,14,10);
+  for(const side of [-1,1]){
+   // upright triangular cat ears with warm pink inner ears
+   const x=side*.166,z=hz-.018;
+   m.cone(x,hy+.211,z,.114,.235,ginger,12);
+   m.cone(x,hy+.220,z+.041,.068,.138,'#edb4a8',11);
+  }
+ }else{
+  for(const side of [-1,1]){
+   el(side*.227,hy-.035,hz-.04,.108,.202,.106,ear,18,12); // only ears are beige
+   el(side*.235,hy-.115,hz+.027,.082,.106,.067,'#d8bea2',16,10);
+  }
+  el(-.067,hy-.084,hz+.177,.119,.106,.113,'#fffaf5',16,12);
+  el(.067,hy-.084,hz+.177,.119,.106,.113,'#fffaf5',16,12);
+ }
+ for(const side of [-1,1]){
+  const eyex=side*(isDog?.090:.098),eyez=hz+.190;
+  el(eyex,hy+.015,eyez,.026,.032,.014,isDog?'#41342e':'#4c4939',11,9);
+  el(eyex-.007,hy+.027,eyez+.010,.006,.008,.006,'#fffdf4',9,6);
+ }
+ if(isDog){
+  el(0,hy-.08,hz+.268,.058,.041,.028,'#4b3936',12,9);
+  if(excited||play){el(0,hy-.144,hz+.259,.040,.064,.020,'#e991a0',12,9)}
+ }else{
+  el(0,hy-.09,hz+.255,.032,.021,.021,'#d68f93',12,8);
+  if(yawn){el(0,hy-.151,hz+.241,.047,.068,.026,'#614343',13,10);el(0,hy-.186,hz+.260,.034,.021,.010,'#e49d9f',9,6)}
+  for(const side of [-1,1])for(const j of [-1,1]){
+   const sx=side*.055,sz=hz+.242;
+   limb([sx,hy-.104+j*.016,sz],[side*.210,hy-.097+j*.039,hz+.245],.004,'#e9d9c9',5);
+  }
+ }
+ // Tail arc is modeled in 3D with several small attached segments.
+ if(isDog){
+  const wag=pose===12?-.20:excited||play?.20:pose===1?-.12:pose===2?.12:0;
+  limb([0,bodyY+.08,-.365],[wag,bodyY+.24,-.48],.065,'#fff9ef',11);
+  el(wag,bodyY+.26,-.49,.102,.123,.094,'#fffaf2',14,10);
+ }else{
+  const bend=pose===9?.24:rub?-.18:.09;
+  limb([0,bodyY+.05,-.39],[bend*.45,bodyY+.20,-.53],.071,ginger,11);
+  limb([bend*.45,bodyY+.20,-.53],[bend,bodyY+.47,-.63],.060,ginger,11);
+  el(bend,bodyY+.48,-.63,.082,.095,.082,baby?'#fcf3ea':'#fff3e7',14,10);
+ }
+ // An active stretch lowers forepaws; kitten's rub pose tilts its front shoulder.
+ if(rub){el(-.15,bodyY+.03,.28,.085,.095,.13,fur,12,9);for(let i=0;i<m.data.length;i+=6)m.data[i]+=m.data[i+1]*.045;}
+ if(eating)el(0,hy-.185,hz+.22,.042,.041,.053,'#efd2ae',11,7);
+ // Original geometry is scaled once before upload, including CPU fallback.
+ if(spec.scale!==1)for(let i=0;i<m.data.length;i+=6){m.data[i]*=spec.scale;m.data[i+1]*=spec.scale;m.data[i+2]*=spec.scale}
+ return {...createBuffer(m),original:m};
+}
+// Pose numbers: idle, two walking phases, sitting, delight, eating,
+// rubbing, stretching, sleeping, playing, sprinting.
+const petToyMeshes={};
+for(const [key,color] of [['ball','#db846f'],['yarn','#d8a8bb']]){
+ const mesh=new Mesh();mesh.ellipsoid(0,.095,0,.095,.095,.095,color,14,11);
+ if(key==='ball'){mesh.box(0,.097,.096,.075,.014,.008,'#fff0cc')}else{for(let j=-1;j<=1;j++)mesh.box(j*.045,.190-j*j*.028,.012,.009,.012,.13,'#edd4e0',j*.5)}
+ petToyMeshes[key]={...createBuffer(mesh),original:mesh};
+}
+const petMeshes=Object.fromEntries(Object.keys(petSpecifications).map(id=>[id,Array.from({length:13},(_,pose)=>makePetMesh(id,pose))]));
+
 const particleMeshes={};for(const c of ['#fbd7b0','#fad4d9','#f9ecbe','#cde2d0','#d0a076','#f5dbb7','#f4b0c9','#c9c1fa']){const p=new Mesh();p.sphere(0,0,0,.10,c,8,5);particleMeshes[c]=createBuffer(p)}
 
 // Perspective 3D CPU fallback, for browsers with GPU acceleration blocked. Same XYZ scene, lower FPS.
 function triCache(mesh){let out=[],a=mesh.data;for(let i=0;i<a.length;i+=18){let c=[3,4,5].map(j=>Math.round(Math.min(1,(a[i+j]+a[i+j+6]+a[i+j+12])/3)*255));out.push([a[i],a[i+1],a[i+2],a[i+6],a[i+7],a[i+8],a[i+12],a[i+13],a[i+14],`rgb(${c.join(',')})`])}return out}
+const softPetToys=gl?null:Object.fromEntries(Object.entries(petToyMeshes).map(([id,m])=>[id,triCache(m.original)]));
+const softPets=gl?null:Object.fromEntries(Object.entries(petMeshes).map(([id,poses])=>[id,poses.map(m=>triCache(m.original))]));
 const softWorld=gl?null:triCache(world),softLampOn=gl?null:triCache(lampBulbOnMesh),softLampOff=gl?null:triCache(lampBulbOffMesh),softAvatars=gl?null:Object.fromEntries(Object.entries(avatars).map(([gender,colors])=>[gender,colors.map(set=>set.map(a=>triCache(a.original)))]));let lastSoftDraw=0;
-function drawSoftware(ts,people,cam,particles,lampOn=true){
+function drawSoftware(ts,people,cam,particles,lampOn=true,petStates=[]){
  if(!softCtx||ts-lastSoftDraw<145)return;lastSoftDraw=ts;
  const w=canvas.width,h=canvas.height,m=cam.matrix;let op=[];const eye=cam.eye;
  function add(tris,px=0,py=0,pz=0,rot=0){const co=Math.cos(rot),si=Math.sin(rot);for(const a of tris){let coords=[],depth=0,valid=true;for(let i=0;i<9;i+=3){const x=a[i]*co+a[i+2]*si+px,y=a[i+1]+py,z=-a[i]*si+a[i+2]*co+pz;const clipW=m[3]*x+m[7]*y+m[11]*z+m[15];if(clipW<.09){valid=false;break}let vx=(m[0]*x+m[4]*y+m[8]*z+m[12])/clipW,vy=(m[1]*x+m[5]*y+m[9]*z+m[13])/clipW;coords.push((vx*.5+.5)*w,(.5-vy*.5)*h);depth+=Math.hypot(x-eye[0],y-eye[1],z-eye[2])}if(!valid)continue;if(Math.min(coords[0],coords[2],coords[4])>w||Math.max(coords[0],coords[2],coords[4])<0||Math.min(coords[1],coords[3],coords[5])>h||Math.max(coords[1],coords[3],coords[5])<0)continue;op.push([depth/3,...coords,a[9]])}}
  add(softWorld);add(lampOn?softLampOn:softLampOff);for(const p of people){if(cam.first&&p.self)continue;add((softAvatars[p.gender==='female'?'female':'male'][p.color]||softAvatars.male[0])[p.pose||0],p.x,p.py||0,p.z,p.rot)}
+ for(const pet of petStates){const poses=softPets?.[pet.id];if(poses)add(poses[pet.pose]||poses[0],pet.x,pet.py||0,pet.z,pet.rot||0)}
  op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#141723';softCtx.fillRect(0,0,w,h);
  for(const a of op){softCtx.beginPath();softCtx.moveTo(a[1],a[2]);softCtx.lineTo(a[3],a[4]);softCtx.lineTo(a[5],a[6]);softCtx.closePath();softCtx.fillStyle=a[7];softCtx.fill()}
 }

@@ -8,7 +8,7 @@
       <div class="roomtop"><span class="live"><span class="live-dot"></span> LIVE ROOM <b id="roomCode">NIGHT</b></span><span class="count"><span id="count">1</span> / 20 함께</span><button id="copy" title="모임 초대 주소 복사">초대 링크 <span>↗</span></button></div>
     </div>
     <div class="chapter"><div class="eyebrow" id="zoneLabel">THE WRITING ROOM</div><h1 id="zoneTitle">밤의 문장들</h1><p id="zoneSub">서로의 이야기가 머무는 작은 방</p></div>
-    <div id="worldlabels"></div><div id="proximityHint" class="proximityHint" role="status" aria-live="polite" hidden>
+    <div id="worldlabels"></div><div id="petLabels" aria-label="동물 친구들과 상호작용"></div><div id="proximityHint" class="proximityHint" role="status" aria-live="polite" hidden>
        <span class="proximityIcon" id="proximityIcon" aria-hidden="true">✦</span><span class="proximityCopy"><strong id="proximityTitle"></strong><small id="proximityText"></small><span id="proximityChoices" class="proximityChoices" aria-hidden="true"></span></span>
      </div><div id="lightlayer" aria-hidden="true"></div><div id="fxlayer" aria-hidden="true"></div>
     <div class="hud-bottom">
@@ -26,6 +26,22 @@
           <button type="button" data-snack="cookie"><span class="snackIcon">🍪</span><strong>바삭한 과자</strong><small>달콤한 한 입</small></button>
           <button type="button" data-snack="jelly"><span class="snackIcon">🍬</span><strong>말랑한 젤리</strong><small>기분 좋은 간식</small></button>
         </div><div class="snackBottom">✦ 다과룸에는 의자가 없어요. 편하게 서서 둘러보세요.</div>
+      </div>
+    </div>
+
+    <!-- Shared roaming pets: direct head-height actions and an E-key accessible menu. -->
+    <div id="petMenu" class="petOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="petMenuTitle">
+      <div class="petCard">
+        <div class="petTop"><span>🐾 글숲의 동물 친구들</span><button type="button" id="petMenuClose" aria-label="동물 상호작용 닫기">✕</button></div>
+        <h2 id="petMenuTitle">🐾 산이와 놀기</h2>
+        <p id="petMenuSub">가까이 가면 반겨 줘요.</p>
+        <div class="petChoices">
+          <button type="button" data-pet-choice="pet"><span>🐾</span><strong>쓰다듬기</strong><small>머리와 등을 살살 쓰다듬어요</small></button>
+          <button type="button" data-pet-choice="treat"><span>🍪</span><strong>간식 주기</strong><small>앉아서 간식을 먹어요</small></button>
+          <button type="button" data-pet-choice="call"><span>👋</span><strong>이리 와!</strong><small>나를 향해 다가와요</small></button>
+          <button type="button" data-pet-choice="play"><span>🎾</span><strong id="petPlayButton">공놀이</strong><small>폴짝 뛰며 즐겁게 놀아요</small></button>
+        </div>
+        <p class="petFoot">동물의 움직임과 반응은 같은 방의 모든 참가자에게 보여요.</p>
       </div>
     </div>
 

@@ -674,3 +674,28 @@
 @media(min-width:701px){
  .libraryBookGroup.libraryAuthorSection .libraryBookCover{min-height:105px;max-height:105px;height:105px}
 }
+
+/* V14.26 — shared 3D animals: labels float above the real meshes, not on a fixed UI. */
+#petLabels{position:absolute;inset:0;z-index:8;pointer-events:none;overflow:hidden}
+.petNameplate{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;min-width:90px;filter:drop-shadow(0 4px 7px #0007)}
+.petNameplate[hidden]{display:none!important}
+.petNameplateTitle{background:#fff4dbf0;border:1px solid #cead7f;color:#513d30;border-radius:999px;padding:4px 11px;font-weight:850;font-size:12px;letter-spacing:-.2px;box-shadow:0 4px 9px #0003;white-space:nowrap}
+.petQuickActions{display:none;align-items:center;justify-content:center;gap:5px;background:#302537d9;border:1px solid #ffecce8a;border-radius:999px;padding:5px;pointer-events:auto}
+.petNear .petQuickActions{display:flex}
+.petQuickActions button{border:1px solid #ffedd1c5;background:#fff8ee;color:#584139;font-size:19px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;box-shadow:0 2px 6px #0004;touch-action:manipulation}
+.petQuickActions button:hover,.petQuickActions button:focus-visible{background:#fbe0af;transform:translateY(-1px)}
+.petReactionBubble{position:absolute;bottom:100%;left:50%;transform:translate(-50%,-8px);font-size:30px;line-height:1.2;background:#302537ed;border:1px solid #ffead1af;border-radius:16px;padding:5px 9px;animation:reactionHeadFade 1.7s ease-out both;pointer-events:none}
+.petReactionBubble[hidden]{display:none!important}
+.petOverlay{position:absolute;inset:0;z-index:17;display:grid;place-items:center;padding:18px;background:#110e19ab;backdrop-filter:blur(3px)}
+.petOverlay.hidden{display:none!important}
+.petCard{width:min(420px,100%);max-height:85dvh;overflow:auto;border:1px solid #ddc29e;background:#fbf3e7;color:#463428;border-radius:21px;padding:21px;box-shadow:0 30px 65px #100a1688}
+.petTop{display:flex;justify-content:space-between;align-items:center;color:#917355;font-size:12px;font-weight:800;letter-spacing:.3px}
+.petTop button{border:1px solid #d6c2a6;background:#fffaf2;color:#6b5746;border-radius:50%;width:34px;height:34px;font-size:15px}
+.petCard h2{margin:13px 0 4px;font:600 24px/1.4 'Noto Serif KR',serif;color:#47362d}
+.petCard>p{font-size:13px;color:#786456;line-height:1.7;margin:8px 0 18px}
+.petChoices{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.petChoices button{border:1px solid #e3cfb7;background:#fffaf2;border-radius:14px;color:#533e30;display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;min-height:110px}
+.petChoices button:hover,.petChoices button:focus-visible{background:#f6e4ce;border-color:#b98e6b}
+.petChoices button span{font-size:28px}.petChoices button strong{font-size:14px}.petChoices button small{font-size:10px;color:#816d5c;text-align:center}
+.petCard .petFoot{font-size:11px;margin:14px 0 0;color:#806b58}
+@media(max-width:700px){.petNameplateTitle{font-size:11px;padding:4px 8px}.petQuickActions button{width:39px;height:39px;font-size:20px}.petQuickActions{gap:3px;padding:4px}.petCard{padding:16px}.petChoices button{min-height:98px}}
