@@ -8,7 +8,7 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
-const APP_VERSION = '14.22.0';
+const APP_VERSION = '14.23.0';
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
@@ -19,6 +19,76 @@ const BOOKSHELF_MAX_BYTES=256*1024;
 const WS_MAX_FRAME_BYTES=256*1024;
 const BOOKSHELF_DIR=process.env.BOOKSHELF_DATA_DIR || path.join(__dirname,'data');
 const BOOKSHELF_FILE=path.join(BOOKSHELF_DIR,'room-books.json');
+// Render Free deletes local data on sleep/restart/deploy. An external Supabase database
+// provides durable storage. The secret key is ONLY used by this Node server.
+const SUPABASE_URL=(process.env.SUPABASE_URL||'').trim().replace(/\/$/,'');
+const SUPABASE_SECRET_KEY=(process.env.SUPABASE_SECRET_KEY||'').trim();
+const REMOTE_ENABLED=!!(SUPABASE_URL&&SUPABASE_SECRET_KEY);
+const REMOTE_MISCONFIGURED=!!(SUPABASE_URL||SUPABASE_SECRET_KEY)&&!REMOTE_ENABLED;
+const STORAGE_MODE=REMOTE_ENABLED?'supabase':(process.env.BOOKSHELF_DATA_DIR?'configured-directory':'ephemeral');
+const remoteLoaded=new Set(),remoteLoading=new Map(),shelfLocks=new Map();
+function storageProblem(e){
+ const msg=String(e?.message||'저장 요청에 실패했습니다.').slice(0,250);
+ return '공개 책 영구 저장소에 접속하거나 기록하지 못했습니다. '+msg+' Render의 SUPABASE_URL, SUPABASE_SECRET_KEY 및 Supabase 테이블 설정을 확인해 주세요.';
+}
+function withShelfLock(code,fn){
+ const previous=shelfLocks.get(code)||Promise.resolve();
+ let release;const current=new Promise(r=>{release=r});shelfLocks.set(code,current);
+ return (async()=>{await previous;try{return await fn()}finally{release();if(shelfLocks.get(code)===current)shelfLocks.delete(code)}})();
+}
+async function remoteRequest(relative,method='GET',body){
+ if(REMOTE_MISCONFIGURED)throw new Error('환경 변수 두 개 중 하나가 비어 있습니다.');
+ let base;try{base=new URL(SUPABASE_URL)}catch(e){throw new Error('SUPABASE_URL 형식이 올바르지 않습니다.')}
+ if(base.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(base.hostname))throw new Error('Supabase 주소는 HTTPS여야 합니다.');
+ const url=SUPABASE_URL+'/rest/v1/writing_room_shelves'+relative;
+ const headers={apikey:SUPABASE_SECRET_KEY,Accept:'application/json'};
+ if(body!==undefined){headers['Content-Type']='application/json';headers.Prefer='resolution=merge-duplicates,return=minimal'}
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),9000);
+ try{
+  const resp=await fetch(url,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal});
+  if(!resp.ok){let detail='';try{const err=await resp.json();detail=String(err.message||err.code||'').slice(0,120)}catch(e){}
+   throw new Error('Supabase HTTP '+resp.status+(detail?' - '+detail:''));}
+  if(method==='GET')return await resp.json();return null;
+ }finally{clearTimeout(timeout)}
+}
+async function remoteSaveRoom(code,books,deleted){
+ await remoteRequest('?on_conflict=room_code','POST',{room_code:code,state:{books,deleted},updated_at:new Date().toISOString()});
+}
+async function ensureRoomLoaded(code){
+ if(REMOTE_MISCONFIGURED)throw new Error('SUPABASE_URL과 SUPABASE_SECRET_KEY를 모두 입력해야 합니다.');
+ if(!REMOTE_ENABLED||remoteLoaded.has(code))return;
+ if(!remoteLoading.has(code)){
+  const job=(async()=>{
+   const rows=await remoteRequest('?room_code=eq.'+encodeURIComponent(code)+'&select=state&limit=1');
+   if(!Array.isArray(rows))throw new Error('데이터베이스가 올바른 책장 목록을 반환하지 않았습니다.');
+   if(rows.length){
+    const state=rows[0]?.state;
+    if(!state||!Array.isArray(state.books)||!Array.isArray(state.deleted))throw new Error('데이터베이스의 책장 형식이 올바르지 않습니다.');
+    savedBooks.set(code,state.books.filter(b=>b&&typeof b.id==='string'&&typeof b.text==='string'&&typeof b.title==='string'&&typeof b.author==='string').slice(-BOOKSHELF_LIMIT));
+    deletedBooks.set(code,state.deleted.filter(id=>typeof id==='string').slice(-2000));
+   }else{
+    // One-time migration: if this instance still has saved local books, upload them.
+    const old=savedBooks.get(code)||[],gone=deletedBooks.get(code)||[];
+    if(old.length||gone.length)await remoteSaveRoom(code,old,gone);
+    else {savedBooks.set(code,[]);deletedBooks.set(code,[])}
+   }
+   const existing=rooms.get(code);if(existing)existing.books=savedBooks.get(code)||[];
+   remoteLoaded.add(code);
+  })();
+  remoteLoading.set(code,job);
+  job.finally(()=>{if(remoteLoading.get(code)===job)remoteLoading.delete(code)}).catch(()=>{});
+ }
+ return remoteLoading.get(code);
+}
+async function saveShelfState(code,books,deleted){
+ if(REMOTE_ENABLED){await remoteSaveRoom(code,books,deleted);savedBooks.set(code,books);deletedBooks.set(code,deleted);return 'supabase'}
+ if(REMOTE_MISCONFIGURED)throw new Error('Supabase 환경 변수 두 개를 모두 설정해야 합니다.');
+ const prev=savedBooks.get(code),prevDeleted=deletedBooks.get(code);
+ savedBooks.set(code,books);deletedBooks.set(code,deleted);
+ try{persistBooks()}catch(e){if(prev===undefined)savedBooks.delete(code);else savedBooks.set(code,prev);if(prevDeleted===undefined)deletedBooks.delete(code);else deletedBooks.set(code,prevDeleted);throw e}
+ return STORAGE_MODE;
+}
+
 const savedBooks=new Map();
 // Keep deleted IDs across reconnects, so stale browser backups cannot resurrect removed books.
 const deletedBooks=new Map();
@@ -60,7 +130,7 @@ function persistBooks(){
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.json':'application/json; charset=utf-8'};
 // V14.19: Reliable book publishing through an ordinary HTTP request. WebSocket remains
 // for presence and live fanout, but publication no longer depends on a long WS frame.
-function publishOverHttp(raw){
+async function publishOverHttp(raw){
  const message={t:'shelfError',requestId:typeof raw?.requestId==='string'?raw.requestId.slice(0,80):'',maxChars:BOOKSHELF_MAX_CHARS};
  const fail=(status,reason,text)=>({status,body:{...message,reason,message:text}});
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return fail(400,'INVALID_INPUT','요청 형식이 잘못됐습니다.');
@@ -79,30 +149,28 @@ function publishOverHttp(raw){
  if(titleCount>80)return fail(422,'TITLE_LIMIT',`제목은 최대 80자입니다. 현재 ${titleCount.toLocaleString()}자로 ${(titleCount-80).toLocaleString()}자를 줄여 주세요.`);
  if(count>BOOKSHELF_MAX_CHARS)return fail(422,'CHAR_LIMIT',`본문은 최대 ${BOOKSHELF_MAX_CHARS.toLocaleString()}자까지 공개할 수 있습니다. 현재 ${count.toLocaleString()}자로 ${(count-BOOKSHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요. 비공개 글은 그대로 남아 있습니다.`);
  const sourceDraftId=(typeof raw.sourceDraftId==='string'&&/^draft-[a-z0-9-]{1,72}$/i.test(raw.sourceDraftId))?raw.sourceDraftId:'';
- // Reuse room state so existing participants receive the new cover immediately.
- let room=rooms.get(code);
- if(!room){room={code,clients:new Map(),reading:null,history:[],books:savedBooks.get(code)||[],lampOn:true,emptyAt:0};rooms.set(code,room);}
- const prior=room.books.find(b=>b.requestId===requestId);
- if(prior)return {status:200,body:{t:'shelfAck',requestId,book:publicBook(prior),updated:!!prior.updatedAt,storage:transientBookIds.has(prior.id)?'temporary':'file',reason:transientBookIds.has(prior.id)?'서버 파일 저장 실패 후 임시 공유 중':''}};
- const ctx={room,name};
- const existingIndex=sourceDraftId?room.books.findIndex(b=>b.sourceDraftId===sourceDraftId&&(b.ownerHash?canManage(ctx,b,ownerKey,sourceDraftId):b.author===name)):-1;
- if(room.books.length>=BOOKSHELF_LIMIT&&existingIndex<0)return fail(409,'SHELF_FULL',`책장이 가득 찼습니다. 현재 ${room.books.length}권, 최대 ${BOOKSHELF_LIMIT}권까지 공개할 수 있습니다.`);
- const existing=existingIndex>=0?room.books[existingIndex]:null;
- if(existing&&!canManage(ctx,existing,ownerKey,sourceDraftId))return fail(403,'NOT_OWNER','이미 공개된 책을 수정할 권한이 없습니다. 처음 등록한 브라우저의 관리 키가 필요합니다.');
- const now=Date.now();
- const entry=existing?
-   {...existing,title,text,updatedAt:now,requestId,ownerHash:existing.ownerHash||ownerHash(room.code,ownerKey)}:
-   {id:crypto.randomUUID(),title,text,author:name,createdAt:now,updatedAt:0,requestId,ownerHash:ownerHash(room.code,ownerKey),...(sourceDraftId?{sourceDraftId}:{})};
- const next=existingIndex>=0?room.books.map((b,i)=>i===existingIndex?entry:b):[...room.books,entry];
- savedBooks.set(room.code,next);
- let storage='file',reason='';
- try{persistBooks();transientBookIds.delete(entry.id)}catch(e){
-   transientBookIds.add(entry.id);storage='temporary';reason=diskError(e);
-   console.error('HTTP 책장 파일 저장 실패:',e.code||'UNKNOWN',e.message);
- }
- room.books=next;
- broadcast(room,{t:'shelfBook',book:publicBook(entry)});
- return {status:200,body:{t:'shelfAck',requestId,book:publicBook(entry),updated:!!existing,storage,reason}};
+ return withShelfLock(code,async()=>{
+  try{await ensureRoomLoaded(code)}catch(e){return fail(503,'STORAGE_UNAVAILABLE',storageProblem(e))}
+  let room=rooms.get(code);
+  if(!room){room={code,clients:new Map(),reading:null,history:[],books:savedBooks.get(code)||[],lampOn:true,emptyAt:0};rooms.set(code,room)}
+  const prior=room.books.find(b=>b.requestId===requestId);
+  if(prior)return {status:200,body:{t:'shelfAck',requestId,book:publicBook(prior),updated:!!prior.updatedAt,storage:STORAGE_MODE}};
+  const ctx={room,name};
+  const existingIndex=sourceDraftId?room.books.findIndex(b=>b.sourceDraftId===sourceDraftId&&(b.ownerHash?canManage(ctx,b,ownerKey,sourceDraftId):b.author===name)):-1;
+  if(room.books.length>=BOOKSHELF_LIMIT&&existingIndex<0)return fail(409,'SHELF_FULL',`책장이 가득 찼습니다. 현재 ${room.books.length}권, 최대 ${BOOKSHELF_LIMIT}권까지 공개할 수 있습니다.`);
+  const existing=existingIndex>=0?room.books[existingIndex]:null;
+  if(existing&&!canManage(ctx,existing,ownerKey,sourceDraftId))return fail(403,'NOT_OWNER','이미 공개된 책을 수정할 권한이 없습니다. 처음 등록한 브라우저의 관리 키가 필요합니다.');
+  const now=Date.now();
+  const entry=existing?
+    {...existing,title,text,updatedAt:now,requestId,ownerHash:existing.ownerHash||ownerHash(room.code,ownerKey)}:
+    {id:crypto.randomUUID(),title,text,author:name,createdAt:now,updatedAt:0,requestId,ownerHash:ownerHash(room.code,ownerKey),...(sourceDraftId?{sourceDraftId}:{})};
+  const next=existingIndex>=0?room.books.map((b,i)=>i===existingIndex?entry:b):[...room.books,entry];
+  let storage;
+  try{storage=await saveShelfState(code,next,deletedBooks.get(code)||[])}catch(e){console.error('책 공개 기록 실패:',e.message);return fail(503,'STORAGE_FAILED',storageProblem(e))}
+  room.books=next;
+  broadcast(room,{t:'shelfBook',book:publicBook(entry)});
+  return {status:200,body:{t:'shelfAck',requestId,book:publicBook(entry),updated:!!existing,storage}};
+ });
 }
 function sendShelfHttpJson(res,status,body){
  res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
@@ -110,7 +178,7 @@ function sendShelfHttpJson(res,status,body){
 }
 const server = http.createServer((req,res)=>{
   const target = new URL(req.url,'http://localhost');
-  if (target.pathname === '/health') {res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify({ok:true,rooms:rooms.size,version:APP_VERSION,shelfMaxChars:BOOKSHELF_MAX_CHARS,shelfPublish:'http-v1',shelfStorage:process.env.BOOKSHELF_DATA_DIR?'configured-directory':'ephemeral'}));}
+  if (target.pathname === '/health') {res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify({ok:true,rooms:rooms.size,version:APP_VERSION,shelfMaxChars:BOOKSHELF_MAX_CHARS,shelfPublish:'http-v1',shelfStorage:STORAGE_MODE,shelfStorageDurable:STORAGE_MODE==='supabase',shelfConfigured:!REMOTE_MISCONFIGURED}));}
   if(target.pathname==='/api/shelf/publish'){
     if(req.method!=='POST')return sendShelfHttpJson(res,405,{t:'shelfError',reason:'METHOD_INVALID',message:'책 공개에는 POST 요청이 필요합니다.'});
     if(req.headers.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)return sendShelfHttpJson(res,403,{t:'shelfError',reason:'ORIGIN_INVALID',message:'다른 사이트에서 책을 등록할 수 없습니다.'})}catch(e){return sendShelfHttpJson(res,403,{t:'shelfError',reason:'ORIGIN_INVALID',message:'허용되지 않은 접속입니다.'})}}
@@ -120,7 +188,7 @@ const server = http.createServer((req,res)=>{
     req.on('end',()=>{
       if(tooLarge)return sendShelfHttpJson(res,413,{t:'shelfError',reason:'BYTE_LIMIT',maxChars:BOOKSHELF_MAX_CHARS,message:`전송 데이터가 ${BOOKSHELF_MAX_BYTES.toLocaleString()}바이트를 넘었습니다. 본문은 최대 10,000자까지 가능합니다. 글에 대량의 특수문자가 포함됐다면 일부를 줄여 주세요.`});
       let body;try{body=JSON.parse(Buffer.concat(parts).toString('utf8'))}catch(e){return sendShelfHttpJson(res,400,{t:'shelfError',reason:'JSON_INVALID',message:'책 데이터의 전송 형식이 깨졌습니다. 페이지를 새로고침해 다시 시도해 주세요.'})}
-      try{const result=publishOverHttp(body);sendShelfHttpJson(res,result.status,result.body)}catch(e){console.error('HTTP 책 공개 실패:',e.stack||e.message);sendShelfHttpJson(res,500,{t:'shelfError',reason:'SERVER_ERROR',message:'서버에서 책 공개 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'})}
+      publishOverHttp(body).then(result=>sendShelfHttpJson(res,result.status,result.body)).catch(e=>{console.error('HTTP 책 공개 실패:',e.stack||e.message);if(!res.headersSent)sendShelfHttpJson(res,500,{t:'shelfError',reason:'SERVER_ERROR',message:'서버에서 책 공개 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'})})
     });
     req.on('error',e=>{console.error('HTTP 책 요청 전송 오류:',e.message);if(!res.headersSent)sendShelfHttpJson(res,400,{t:'shelfError',reason:'NETWORK_ERROR',message:'책 데이터를 받다가 연결이 끊겼습니다.'})});
     return;
@@ -160,9 +228,12 @@ function leave(c){
 function finite(n,min,max,fallback){return typeof n==='number'&&Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback}
 function safeStr(t,n){return typeof t==='string'?t.trim().slice(0,n):''}
 function rate(c,key,ms){const now=Date.now();if(now-(c.last[key]||0)<ms)return false;c.last[key]=now;return true}
-function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return;
+async function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return;
   if(msg.t==='join'){
     if(c.room)return;const code=safeStr(msg.code,18).toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
+    let shelfLoadError='';
+    try{await ensureRoomLoaded(code)}catch(e){shelfLoadError=storageProblem(e);console.error('책장 초기화 실패:',e.message)}
+    if(c.socket.destroyed)return;
     let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],books:savedBooks.get(code)||[],lampOn:true,emptyAt:0};rooms.set(code,room)}
     room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
@@ -179,7 +250,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       if(ix>=0)editableBookKeyIndices[book.id]=ix;
     }
     const editableBookIds=Object.keys(editableBookKeyIndices);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books.map(publicBook),deletedBookIds:deletedBooks.get(code)||[],editableBookIds,editableBookKeyIndices,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000','shelf-manage-v1','shelf-owner-multikey-v1','shelf-http-publish-v1']});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:shelfLoadError?[]:room.books.map(publicBook),deletedBookIds:deletedBooks.get(code)||[],editableBookIds,editableBookKeyIndices,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,shelfStorage:STORAGE_MODE,shelfLoadError,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000','shelf-manage-v1','shelf-owner-multikey-v1','shelf-http-publish-v1']});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -227,97 +298,57 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       broadcast(room,{t:'mood',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
     case 'shelfAdd':{
-      // Explicit validation before trimming: never silently truncate user writing.
-      const requestId=typeof msg.requestId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(msg.requestId)?msg.requestId:'';
-      const fail=(message,reason='INVALID_INPUT')=>send(c,{t:'shelfError',requestId,message,reason,maxChars:BOOKSHELF_MAX_CHARS});
-      const prior=requestId&&room.books.find(b=>b.requestId===requestId);
-      if(prior){send(c,{t:'shelfAck',requestId,book:publicBook(prior),updated:!!prior.updatedAt,storage:transientBookIds.has(prior.id)?'temporary':'file',reason:transientBookIds.has(prior.id)?'서버 파일 저장 실패 후 임시 공유 중':''});return}
-      if(!rate(c,'shelfAdd',1200)){fail('등록 요청이 너무 빠르게 반복됐습니다. 잠시 후 다시 눌러 주세요.','RATE_LIMIT');return}
-      if(typeof msg.text!=='string'){fail('본문 형식이 올바르지 않습니다. 글쓰기 화면에서 다시 저장해 주세요.','INVALID_TEXT');return}
-      const rawText=msg.text;
-      const text=rawText.trim();
-      const count=[...text].length;
-      if(!text){fail('본문이 비어 있습니다. 글을 작성한 후 책장에 꽂아 주세요.','EMPTY_TEXT');return}
-      if(count>BOOKSHELF_MAX_CHARS){fail(`본문 저장 한도는 최대 ${BOOKSHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${count.toLocaleString()}자로 ${(count-BOOKSHELF_MAX_CHARS).toLocaleString()}자를 줄여야 합니다. 작성한 글은 삭제되지 않습니다.`,'CHAR_LIMIT');return}
-      if(typeof msg.title==='string'&&[...msg.title.trim()].length>80){
-        const titleCount=[...msg.title.trim()].length;
-        fail(`제목은 최대 80자입니다. 현재 ${titleCount}자로 ${titleCount-80}자를 줄여 주세요.`,'TITLE_LIMIT');return;
-      }
-      const title=(typeof msg.title==='string'?[...msg.title.trim()].slice(0,80).join(''):'')||'제목 없는 글';
-      const sourceDraftId=(typeof msg.sourceDraftId==='string'&&/^draft-[a-z0-9-]{1,72}$/i.test(msg.sourceDraftId))?msg.sourceDraftId:'';
-      const byteLength=Buffer.byteLength(JSON.stringify({t:'shelfAdd',requestId,title,text,sourceDraftId,ownerKey:msg.ownerKey}),'utf8');
-      if(byteLength>BOOKSHELF_MAX_BYTES){fail(`본문 전송 용량은 최대 ${BOOKSHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${byteLength.toLocaleString()}바이트로 ${(byteLength-BOOKSHELF_MAX_BYTES).toLocaleString()}바이트를 줄여 주세요.`, 'BYTE_LIMIT');return}
-      const ownerKey=validOwnerKey(msg.ownerKey)?msg.ownerKey:'';
-      if(!ownerKey){fail('이 기기의 책장 관리 키를 사용할 수 없습니다. 브라우저 저장소 설정을 확인하고 새로고침한 뒤 다시 시도해 주세요.','NO_OWNER_KEY');return}
-      const existingIndex=sourceDraftId?room.books.findIndex(b=>b.sourceDraftId===sourceDraftId && (b.ownerHash?canManage(c,b,ownerKey,sourceDraftId):b.author===c.name)):-1;
-      if(existingIndex>=0&&!canManage(c,room.books[existingIndex],ownerKey,sourceDraftId)){
-       fail('이 책을 등록한 기기의 관리 권한이 없습니다. 다른 사람이 작성한 책이나 관리 키가 없는 책은 덮어쓸 수 없습니다.','NOT_OWNER');return;
-      }
-      if(room.books.length>=BOOKSHELF_LIMIT&&existingIndex<0){fail(`이 모임방 책장은 최대 ${BOOKSHELF_LIMIT}권까지 저장할 수 있습니다. 현재 ${room.books.length}권이라 새 책을 꽂을 수 없습니다.`, 'SHELF_FULL');return}
-      const existing=existingIndex>=0?room.books[existingIndex]:null;
-      const now=Date.now();
-      const entry=existing?
-        {...existing,title,text,updatedAt:now,requestId,ownerHash:existing.ownerHash||ownerHash(room.code,ownerKey)}:
-        {id:crypto.randomUUID(),title,text,author:c.name,createdAt:now,updatedAt:0,requestId,ownerHash:ownerHash(room.code,ownerKey),...(sourceDraftId?{sourceDraftId}:{})};
-      const next=existingIndex>=0?room.books.map((b,i)=>i===existingIndex?entry:b):[...room.books,entry];
-      savedBooks.set(room.code,next);
-      let storage='file',reason='';
-      try{persistBooks();transientBookIds.clear()}catch(e){
-        transientBookIds.add(entry.id);
-        storage='temporary';
-        const reasons={EROFS:'서버 저장 공간이 읽기 전용입니다',EACCES:'서버 저장 권한이 없습니다',ENOSPC:'서버 저장 공간이 부족합니다',EDQUOT:'서버 디스크 할당량이 초과됐습니다'};
-        reason=reasons[e.code]||'서버 파일에 쓸 수 없습니다';
-        console.error('책장 디스크 저장 실패:',e.code||'UNKNOWN',e.message);
-      }
-      room.books=next;
-      send(c,{t:'shelfAck',requestId,book:publicBook(entry),updated:!!existing,storage,reason});
-      broadcast(room,{t:'shelfBook',book:publicBook(entry)},c);
+      if(!rate(c,'shelfAdd',1200)){send(c,{t:'shelfError',requestId:msg.requestId||'',reason:'RATE_LIMIT',message:'등록 요청을 너무 빠르게 반복했습니다. 잠시 후 다시 시도해 주세요.'});break}
+      const result=await publishOverHttp({...msg,room:room.code,name:c.name});
+      send(c,result.body);
       break;
     }
     case 'shelfUpdate':{
+      await withShelfLock(room.code,async()=>{
       const requestId=typeof msg.requestId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(msg.requestId)?msg.requestId:'';
       const fail=(message,reason='INVALID_INPUT')=>send(c,{t:'shelfActionError',action:'update',requestId,message,reason,maxChars:BOOKSHELF_MAX_CHARS});
       const id=safeStr(msg.id,64),index=room.books.findIndex(b=>b.id===id);
-      if(index<0){fail('선택한 책이 서버 책장에 없습니다. 다른 사람이 삭제했거나 서버가 재시작되었을 수 있습니다.','BOOK_NOT_FOUND');break}
+      if(index<0){fail('선택한 책이 서버 책장에 없습니다. 다른 사람이 삭제했거나 서버가 재시작되었을 수 있습니다.','BOOK_NOT_FOUND');return}
       const old=room.books[index];
-      if(requestId&&old.lastMutationId===requestId){send(c,{t:'shelfUpdateAck',requestId,book:publicBook(old)});break}
-      if(!rate(c,'shelfMutate',500)){fail('수정 요청이 너무 빠릅니다. 잠시 후 다시 시도해 주세요.','RATE_LIMIT');break}
-      if(!canManage(c,old,msg.ownerKey,msg.sourceDraftId)){fail('이 책을 수정할 권한이 없습니다. 등록한 기기·브라우저의 관리 키가 필요합니다. 이전 버전의 책은 동일 작성자명과 원본 초안이 필요합니다.','NOT_OWNER');break}
-      if(Number(msg.expectedVersion)!==(old.updatedAt||old.createdAt)){fail('다른 곳에서 책이 수정되었습니다. 책장을 다시 열어 최신 내용을 확인해 주세요.','CONFLICT');break}
-      if(typeof msg.title!=='string'||typeof msg.text!=='string'){fail('제목 또는 본문 형식이 잘못됐습니다.','INVALID_INPUT');break}
+      if(requestId&&old.lastMutationId===requestId){send(c,{t:'shelfUpdateAck',requestId,book:publicBook(old)});return}
+      if(!rate(c,'shelfMutate',500)){fail('수정 요청이 너무 빠릅니다. 잠시 후 다시 시도해 주세요.','RATE_LIMIT');return}
+      if(!canManage(c,old,msg.ownerKey,msg.sourceDraftId)){fail('이 책을 수정할 권한이 없습니다. 등록한 기기·브라우저의 관리 키가 필요합니다. 이전 버전의 책은 동일 작성자명과 원본 초안이 필요합니다.','NOT_OWNER');return}
+      if(Number(msg.expectedVersion)!==(old.updatedAt||old.createdAt)){fail('다른 곳에서 책이 수정되었습니다. 책장을 다시 열어 최신 내용을 확인해 주세요.','CONFLICT');return}
+      if(typeof msg.title!=='string'||typeof msg.text!=='string'){fail('제목 또는 본문 형식이 잘못됐습니다.','INVALID_INPUT');return}
       const title=msg.title.trim()||'제목 없는 글',text=msg.text.trim(),count=[...text].length,titleCount=[...title].length;
-      if(!text){fail('책 본문이 비어 있습니다. 글을 작성해 주세요.','EMPTY_TEXT');break}
-      if(titleCount>80){fail(`제목은 최대 80자입니다. 현재 ${titleCount}자이므로 ${titleCount-80}자를 줄여 주세요.`,'TITLE_LIMIT');break}
-      if(count>BOOKSHELF_MAX_CHARS){fail(`본문은 최대 ${BOOKSHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${count.toLocaleString()}자이므로 ${(count-BOOKSHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요.`,'CHAR_LIMIT');break}
-      if(Buffer.byteLength(JSON.stringify({t:'shelfUpdate',requestId,id,title,text,ownerKey:msg.ownerKey}),'utf8')>BOOKSHELF_MAX_BYTES){fail(`전송 용량 ${BOOKSHELF_MAX_BYTES.toLocaleString()}바이트를 초과했습니다. 이모지와 특수문자를 줄여 주세요.`,'BYTE_LIMIT');break}
+      if(!text){fail('책 본문이 비어 있습니다. 글을 작성해 주세요.','EMPTY_TEXT');return}
+      if(titleCount>80){fail(`제목은 최대 80자입니다. 현재 ${titleCount}자이므로 ${titleCount-80}자를 줄여 주세요.`,'TITLE_LIMIT');return}
+      if(count>BOOKSHELF_MAX_CHARS){fail(`본문은 최대 ${BOOKSHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${count.toLocaleString()}자이므로 ${(count-BOOKSHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요.`,'CHAR_LIMIT');return}
+      if(Buffer.byteLength(JSON.stringify({t:'shelfUpdate',requestId,id,title,text,ownerKey:msg.ownerKey}),'utf8')>BOOKSHELF_MAX_BYTES){fail(`전송 용량 ${BOOKSHELF_MAX_BYTES.toLocaleString()}바이트를 초과했습니다. 이모지와 특수문자를 줄여 주세요.`,'BYTE_LIMIT');return}
       const entry={...old,title,text,updatedAt:Date.now(),lastMutationId:requestId,ownerHash:old.ownerHash||ownerHash(room.code,msg.ownerKey)};
       const next=room.books.map((b,i)=>i===index?entry:b);
-      savedBooks.set(room.code,next);
-      try{persistBooks();transientBookIds.delete(id)}catch(e){savedBooks.set(room.code,room.books);fail(diskError(e)+' 기존 책은 그대로 남아 있습니다.','STORAGE_FAILED');break}
+      try{await saveShelfState(room.code,next,deletedBooks.get(room.code)||[])}catch(e){fail(storageProblem(e)+' 기존 책은 그대로 남아 있습니다.','STORAGE_FAILED');return}
       room.books=next;
       send(c,{t:'shelfUpdateAck',requestId,book:publicBook(entry)});
       broadcast(room,{t:'shelfBook',book:publicBook(entry)},c);
+      });
       break;
     }
     case 'shelfDelete':{
+      await withShelfLock(room.code,async()=>{
       const requestId=typeof msg.requestId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(msg.requestId)?msg.requestId:'';
       const fail=(message,reason='INVALID_INPUT')=>send(c,{t:'shelfActionError',action:'delete',requestId,message,reason});
       const id=safeStr(msg.id,64),index=room.books.findIndex(b=>b.id===id);
       const completed=deletedRequests.get(room.code+':'+id);
-      if(index<0&&completed===requestId){send(c,{t:'shelfDeleteAck',requestId,id});break}
-      if(index<0){fail('이미 삭제되었거나 책장에 없는 책입니다. 책장을 다시 확인해 주세요.','BOOK_NOT_FOUND');break}
-      if(!rate(c,'shelfMutate',500)){fail('삭제 요청이 너무 빠릅니다. 잠시 후 다시 시도해 주세요.','RATE_LIMIT');break}
+      if(index<0&&completed===requestId){send(c,{t:'shelfDeleteAck',requestId,id});return}
+      if(index<0){fail('이미 삭제되었거나 책장에 없는 책입니다. 책장을 다시 확인해 주세요.','BOOK_NOT_FOUND');return}
+      if(!rate(c,'shelfMutate',500)){fail('삭제 요청이 너무 빠릅니다. 잠시 후 다시 시도해 주세요.','RATE_LIMIT');return}
       const old=room.books[index];
-      if(!canManage(c,old,msg.ownerKey,msg.sourceDraftId)){fail('이 책을 삭제할 권한이 없습니다. 등록한 기기의 관리 키 또는 이전 버전 원본 초안이 필요합니다.','NOT_OWNER');break}
-      if(Number(msg.expectedVersion)!==(old.updatedAt||old.createdAt)){fail('책이 변경되었습니다. 최신 책을 다시 확인한 다음 삭제해 주세요.','CONFLICT');break}
+      if(!canManage(c,old,msg.ownerKey,msg.sourceDraftId)){fail('이 책을 삭제할 권한이 없습니다. 등록한 기기의 관리 키 또는 이전 버전 원본 초안이 필요합니다.','NOT_OWNER');return}
+      if(Number(msg.expectedVersion)!==(old.updatedAt||old.createdAt)){fail('책이 변경되었습니다. 최신 책을 다시 확인한 다음 삭제해 주세요.','CONFLICT');return}
       const next=room.books.filter(b=>b.id!==id),oldDeleted=deletedBooks.get(room.code)||[];
       const nextDeleted=[...oldDeleted.filter(x=>x!==id),id].slice(-2000);
-      savedBooks.set(room.code,next);deletedBooks.set(room.code,nextDeleted);
-      try{persistBooks()}catch(e){savedBooks.set(room.code,room.books);deletedBooks.set(room.code,oldDeleted);fail(diskError(e)+' 책이 삭제되지 않았습니다.','STORAGE_FAILED');break}
-      room.books=next;transientBookIds.delete(id);
+      try{await saveShelfState(room.code,next,nextDeleted)}catch(e){fail(storageProblem(e)+' 책은 삭제되지 않았습니다.','STORAGE_FAILED');return}
+      room.books=next;
       deletedRequests.set(room.code+':'+id,requestId);
       send(c,{t:'shelfDeleteAck',requestId,id});
       broadcast(room,{t:'shelfRemove',id},c);
+      });
       break;
     }
     case 'reading':{
@@ -363,11 +394,12 @@ server.on('upgrade',(req,socket)=>{
       if(len>WS_MAX_FRAME_BYTES||!(b[1]&128)){socket.destroy();return}if(b.length<offset+4+len)return;
       const mask=b.subarray(offset,offset+4),payload=Buffer.from(b.subarray(offset+4,offset+4+len));for(let i=0;i<len;i++)payload[i]^=mask[i%4];c.buffer=b.subarray(offset+4+len);
       if(op===8){socket.end();return}if(op===9){socket.write(Buffer.from([0x8a,payload.length,...payload]));continue}if(op===10)continue;if(op!==1||!fin){socket.destroy();return}
-      try{handle(c,JSON.parse(payload.toString('utf8')))}catch(e){
+      let m;try{m=JSON.parse(payload.toString('utf8'))}catch(e){continue}
+      c.messageQueue=(c.messageQueue||Promise.resolve()).then(()=>handle(c,m)).catch(e=>{
         console.error('WebSocket 처리 오류:',e.stack||e.message);
-        let m;try{m=JSON.parse(payload.toString('utf8'))}catch(_){m=null}
-        if(m?.t==='shelfAdd')send(c,{t:'shelfError',requestId:typeof m.requestId==='string'?m.requestId:'',message:'서버 내부 오류로 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.'});
-      };
+        if(m?.t==='shelfAdd')send(c,{t:'shelfError',requestId:typeof m.requestId==='string'?m.requestId:'',reason:'SERVER_ERROR',message:'서버 내부 오류로 책을 공개하지 못했습니다.'});
+        if(m?.t==='shelfUpdate'||m?.t==='shelfDelete')send(c,{t:'shelfActionError',requestId:m.requestId||'',action:m.t==='shelfUpdate'?'update':'delete',reason:'SERVER_ERROR',message:'서버 내부 오류로 책을 변경하지 못했습니다.'});
+      });
     }
   });
   socket.on('error',()=>{});socket.on('close',()=>leave(c));

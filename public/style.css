@@ -626,3 +626,9 @@
  .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:13px;line-height:1.13}
  .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:10.5px;line-height:1.12}
 }
+
+/* v14.23: make persistence status unmistakable without covering the 3x3 cover gallery. */
+.libraryStorageStatus{margin:5px 0 9px;padding:8px 11px;border:1px solid #d9c99f;border-radius:9px;background:#fff7e7;color:#684416;font-size:12px;font-weight:650;line-height:1.45}
+.libraryStorageStatus[data-kind="success"]{background:#ebf7ee;color:#174e2c;border-color:#a5d3b0}
+.libraryStorageStatus[data-kind="error"]{background:#fff0f0;color:#8a1926;border-color:#df8994}
+.libraryBookCover.missing-cover{outline:2px dashed #b87c41;outline-offset:-4px}

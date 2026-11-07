@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.22.0",
+  "version": "14.23.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D — 책 표지 제목 60% · 글쓴이 40% 구획 갤러리",
+  "description": "아마추어 글쓰기 3D — 공개 책 영구 저장소 지원 · 공개 상태 오류 해결",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
