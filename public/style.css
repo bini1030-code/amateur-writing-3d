@@ -435,3 +435,17 @@
 #libraryRestore:not([hidden]){display:block;width:100%;margin:12px 0;border:1px solid #6e587d;border-radius:11px;background:#6e587d;color:#fff;padding:13px;font-size:13px;font-weight:850;cursor:pointer}
 #librarySave{font-weight:850}
 @media(max-width:700px){.libraryChoices.libraryBookGrid{max-height:min(42dvh,390px)}.libraryBookTiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+
+/* v14.18: explicit book selection, unambiguous single-tap publishing. */
+.libraryPublish{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.libraryPublishLabel{flex-basis:100%;color:#4d3b31;font-size:12px;line-height:1.5}
+.libraryPublishLabel strong{color:#8b352e}
+#libraryPublishSelect{flex:1 1 180px;min-width:0;padding:11px 12px;border-radius:9px;border:1px solid #a98775;background:#fffdf8;color:#302c29;font-size:13px}
+#libraryPublishSelect:focus-visible,.libraryTilePublish:focus-visible{outline:3px solid #c9985a;outline-offset:2px}
+.libraryTilePublish{margin-top:-3px;margin-bottom:10px;border-radius:9px;padding:9px 11px;font-size:12px;font-weight:750;color:#fffdf7;background:#79604e;border:0;cursor:pointer}
+.libraryTilePublish:hover{background:#594536}.libraryTilePublish:disabled{opacity:.55;cursor:wait}
+.libraryPublish button{flex:0 1 auto}
+
+.libraryBookEntry{display:flex;flex-direction:column;gap:8px;min-width:0}
+.libraryBookEntry>.libraryBookTile{width:100%;flex:1}
+.libraryBookEntry>.libraryTilePublish{width:100%;margin:0;font-size:11px}
