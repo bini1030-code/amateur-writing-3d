@@ -8,7 +8,7 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
-const APP_VERSION = '14.15.0';
+const APP_VERSION = '14.16.0';
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
@@ -28,8 +28,9 @@ const validOwnerKey=key=>typeof key==='string'&&/^[a-f0-9-]{32,80}$/i.test(key);
 // Never send the owner's secret hash to other visitors.
 function publicBook(book){if(!book)return null;const {ownerHash:privateHash,lastMutationId,requestId,...fields}=book;return {...fields,ownerProtected:!!privateHash};}
 function canManage(c,book,ownerKey,sourceDraftId=''){
- if(!book||book.author!==c.name)return false;
+ if(!book)return false;
  if(book.ownerHash)return validOwnerKey(ownerKey)&&ownerHash(c.room.code,ownerKey)===book.ownerHash;
+ if(book.author!==c.name)return false;
  // Legacy books predate ownership keys: limited compatibility by nickname and original draft ID.
  // This is NOT cryptographic authentication; see README security note.
  return !!(book.sourceDraftId&&sourceDraftId===book.sourceDraftId);
@@ -102,8 +103,18 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
     const ownerKey=validOwnerKey(msg.ownerKey)?msg.ownerKey:'';
-    const editableBookIds=room.books.filter(book=>book.ownerHash&&canManage(c,book,ownerKey)).map(book=>book.id);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books.map(publicBook),deletedBookIds:deletedBooks.get(code)||[],editableBookIds,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000','shelf-manage-v1']});
+    const ownerKeys=[];
+    for(const candidate of [ownerKey,...(Array.isArray(msg.ownerKeys)?msg.ownerKeys.slice(0,20):[])]){
+      if(validOwnerKey(candidate)&&!ownerKeys.includes(candidate))ownerKeys.push(candidate);
+    }
+    const editableBookKeyIndices={};
+    for(const book of room.books){
+      if(!book.ownerHash)continue;
+      const ix=ownerKeys.findIndex(k=>canManage(c,book,k));
+      if(ix>=0)editableBookKeyIndices[book.id]=ix;
+    }
+    const editableBookIds=Object.keys(editableBookKeyIndices);
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books.map(publicBook),deletedBookIds:deletedBooks.get(code)||[],editableBookIds,editableBookKeyIndices,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,features:['shelf-save-ack-v2','multi-drafts-v1','shelf-char-limit-10000','shelf-manage-v1','shelf-owner-multikey-v1']});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -173,7 +184,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       if(byteLength>BOOKSHELF_MAX_BYTES){fail(`본문 전송 용량은 최대 ${BOOKSHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${byteLength.toLocaleString()}바이트로 ${(byteLength-BOOKSHELF_MAX_BYTES).toLocaleString()}바이트를 줄여 주세요.`, 'BYTE_LIMIT');return}
       const ownerKey=validOwnerKey(msg.ownerKey)?msg.ownerKey:'';
       if(!ownerKey){fail('이 기기의 책장 관리 키를 사용할 수 없습니다. 브라우저 저장소 설정을 확인하고 새로고침한 뒤 다시 시도해 주세요.','NO_OWNER_KEY');return}
-      const existingIndex=sourceDraftId?room.books.findIndex(b=>b.sourceDraftId===sourceDraftId && b.author===c.name):-1;
+      const existingIndex=sourceDraftId?room.books.findIndex(b=>b.sourceDraftId===sourceDraftId && (b.ownerHash?canManage(c,b,ownerKey,sourceDraftId):b.author===c.name)):-1;
       if(existingIndex>=0&&!canManage(c,room.books[existingIndex],ownerKey,sourceDraftId)){
        fail('이 책을 등록한 기기의 관리 권한이 없습니다. 다른 사람이 작성한 책이나 관리 키가 없는 책은 덮어쓸 수 없습니다.','NOT_OWNER');return;
       }

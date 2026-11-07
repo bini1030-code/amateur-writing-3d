@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.15.0",
+  "version": "14.16.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D v14.15 — 책장에 꽂은 책 수정 및 삭제, 기기 관리 키, 삭제 동기화",
+  "description": "아마추어 글쓰기 3D v14.15 — 책장 권한 진단 및 실제 공유 검증, 캐릭터 머리 위 반응 아이콘",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
