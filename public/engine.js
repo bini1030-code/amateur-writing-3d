@@ -120,13 +120,38 @@ for(let i=0;i<4;i++)C(-6.8+i*.38,1.43,-9.08,.16,.24,['#e6d0aa','#a9c5ba','#e3baa
 C(-3.9,1.34,-9.1,.44,.36,'#d8c0a7');S(-3.9,1.69,-9.1,.23,'#ecdabb',10,6);C(-2.5,1.45,-9.1,.17,.33,'#a07c65');
 B(-4.45,1.3,-5.0,1.1,.06,.65,'#eee2ce');C(-4.5,1.47,-5,.14,.25,'#f6ede2');C(-4.1,1.47,-5.25,.14,.25,'#e5d4be');
 plant(-8.2,-2.7,.9);B(-7.15,2.1,-.76,.88,.9,.09,'#826953');
-// V14 refreshed six-faces psychology room: upgraded with clearer real 3D lounge props.
+// V14.8 - eight-seat round support circle. The center has NO table.
 B(4.5,.035,-5.48,7.65,.045,7.3,'#3c365b');
-C(4.5,.072,-5.47,3.0,.055,'#534568',30);C(4.5,.10,-5.47,2.58,.016,'#6e597c',30);
-C(4.5,.128,-5.47,1.60,.015,'#b58d84',30);C(4.5,.14,-5.47,1.47,.018,'#463854',30);
-// Activity table: this is the only place where the “내 마음 알아보기/몰라보기” interaction will open.
-C(4.5,.52,-5.47,.86,.90,'#65556b',18);C(4.5,.98,-5.47,1.02,.10,'#b89a8d',24);
-B(4.5,1.06,-5.47,.78,.042,.54,'#efe4d2',-.10);B(4.5,1.09,-5.47,.34,.012,.018,'#af8a75',-.10);
+C(4.5,.075,-5.42,2.75,.025,'#675675',36);
+C(4.5,.090,-5.42,2.32,.016,'#7d6b8c',36);
+// Eight slim folding-style metal chairs with fabric seats, all facing inward.
+function supportChair(x,z,rot){
+ const co=Math.cos(rot),si=Math.sin(rot),at=(dx,dz)=>[x+dx*co+dz*si,z-dx*si+dz*co];
+ const metal='#9294a1',fabric='#b9a9c0';
+ const [sx,sz]=at(0,0);
+ B(sx,.48,sz,.59,.10,.53,fabric,rot);
+ const [bx,bz]=at(0,-.27);B(bx,.86,bz,.55,.42,.075,'#a9a3b5',rot);
+ for(const side of [-1,1])for(const zz of [-.23,.22]){
+  const [lx,lz]=at(side*.245,zz);
+  world.limb([lx,.08,lz],[lx,.49,lz],.026,metal,10);
+ }
+ for(const side of [-1,1]){
+  const [lx,lz]=at(side*.245,-.27);world.limb([lx,.48,lz],[lx,.98,lz],.028,metal,10);
+ }
+}
+const supportCX=4.5,supportCZ=-5.42,supportR=1.90;
+for(let i=0;i<8;i++){
+ const a=i*Math.PI/4,x=supportCX+Math.cos(a)*supportR,z=supportCZ+Math.sin(a)*supportR;
+ const rot=Math.atan2(supportCX-x,supportCZ-z);
+ supportChair(x,z,rot);
+}
+// A soft couch replaces beanbags and the hammock, against the right-hand wall.
+B(7.61,.36,-7.52,1.02,.40,1.65,'#927a96');
+B(7.98,.73,-7.52,.24,.83,1.69,'#a48aa7');
+B(7.50,.54,-7.52,.73,.23,1.46,'#baa7bc');
+for(const z of [-7.90,-7.14])B(7.47,.65,z,.69,.17,.65,'#c7b7cb');
+for(const z of [-8.29,-6.75])B(7.55,.65,z,1.09,.50,.16,'#9a829f');
+// Six emotion faces remain available as the reflection activity area, in front of this wall.
 const moods3D=[['#e9bb7a',1.12],['#80a4cd',2.45],['#d58b8e',3.78],['#a798d2',5.10],['#9ebfa5',6.43],['#d7b978',7.76]];
 for(let idx=0;idx<moods3D.length;idx++){
  const [tintColor,x]=moods3D[idx];
@@ -140,38 +165,16 @@ for(const x of [1.0,3.2,5.4,7.6]){C(x,3.54,-9.48,.03,.42,'#a588a0');S(x,3.30,-9.
 for(const z of [-3.2,-5.6,-7.8]){B(8.75,1.9,z,.10,2.6,1.32,'#554768');B(8.67,2.24,z,.11,1.2,.67,'#817399');S(8.58,2.73,z,.13,'#d9c9ef',9,6)}
 B(1.0,.78,-3.75,.53,1.24,1.8,'#67556c');B(1.0,1.47,-3.75,.81,.10,2.05,'#9c8397');
 for(const z of [-7.6,-3.0]){C(.72,.35,z,.28,.55,'#756070');for(let i=0;i<5;i++)S(.72+Math.cos(i*1.25)*.22,.87+(i%2)*.18,z+Math.sin(i*1.25)*.23,.20,'#69877b',8,6)}
-// Actual beanbag silhouettes: overlapping padded lobes instead of cylinders.
-function beanbag(x,z,color,highlight){
- world.ellipsoid(x,.30,z,.64,.30,.59,color,32,22);
- world.ellipsoid(x,.50,z-.28,.51,.48,.32,color,32,22);
- world.ellipsoid(x,.34,z+.16,.52,.16,.36,highlight,28,20);
- world.ellipsoid(x,.53,z-.13,.43,.16,.27,highlight,24,16);
+// Added bookshelf on the right wall, facing the participants.
+B(8.24,1.37,-3.14,.52,2.55,1.67,'#8b7183');
+for(let j=0;j<3;j++){
+ const y=.46+j*.73;
+ B(8.15,y,-3.14,.62,.085,1.71,'#c6a6a1');
+ for(let k=0;k<7;k++){
+  const z=-3.85+k*.23;
+  B(8.07,y+.29,z,.24,.43+(k%3)*.05,.14,['#e6c9ab','#9cabb2','#b8a0b9','#c6b09d'][k%4]);
+ }
 }
-beanbag(2.35,-7.05,'#ac8b9d','#c19fae');beanbag(6.10,-7.05,'#9cad9d','#b7c4b6');
-// V14: visible hammock with two wooden A-frame supports, rope stays and sagging fabric.
-const hx=7.29,hz1=-4.25,hz2=-6.55,endsY=1.65;
-for(const z of [hz1,hz2]){
- world.limb([6.94,.12,z],[7.23,2.05,z],.069,'#886958',12);
- world.limb([7.76,.12,z],[7.43,2.05,z],.069,'#886958',12);
- world.limb([6.86,.10,z],[7.82,.10,z],.042,'#745847',10);
- world.limb([7.23,2.05,z],[7.43,2.05,z],.050,'#a88a70',12);
-}
-for(let i=0;i<32;i++)for(let j=0;j<10;j++){
- const point=(t,u)=>{
-   const z=hz1+(hz2-hz1)*t;
-   const x=hx+(u-.5)*1.06;
-   const y=endsY-.70*Math.sin(Math.PI*t)+.19*Math.pow(Math.abs(u-.5)*2,1.7);
-   return [x,y,z];
- };
- const a=i/32,b=(i+1)/32,u=j/10,v=(j+1)/10;
- const col=rgb(j%3===0?'#d4c3d4':j%3===1?'#e6d9cb':'#cbb5cb');
- world.quadSmooth(point(a,u),point(b,u),point(b,v),point(a,v),col,col,col,col);
-}
-for(const z of [hz1,hz2])for(const side of [-1,1]){
- world.limb([hx+side*.13,2.03,z],[hx+side*.52,endsY+.19,z],.016,'#dfcdb6',8);
-}
-// Side rug so the lounge reads as a distinct rest zone.
-C(5.55,.015,-6.35,3.25,.025,'#7e677f',30);
 
 // V3 bespoke interior details: in-world art, book spines, warm fixtures, layered textiles.
 function picture(x,y,z,w,h,frame,inside){B(x,y,z,w+.13,h+.13,.065,frame);B(x,y,z+.039,w,h,.018,inside)}

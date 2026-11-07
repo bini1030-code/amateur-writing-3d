@@ -11,6 +11,25 @@ const LIMIT = 20;
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
+// A shared bookshelf. For persistent storage on Render, set BOOKSHELF_DATA_DIR to a mounted persistent disk.
+const BOOKSHELF_LIMIT=64;
+const BOOKSHELF_DIR=process.env.BOOKSHELF_DATA_DIR || path.join(__dirname,'data');
+const BOOKSHELF_FILE=path.join(BOOKSHELF_DIR,'room-books.json');
+const savedBooks=new Map();
+try{
+  const raw=JSON.parse(fs.readFileSync(BOOKSHELF_FILE,'utf8'));
+  for(const [code,entries] of Object.entries(raw)){
+    if(!/^[A-Z0-9가-힣-]{1,18}$/.test(code)||!Array.isArray(entries))continue;
+    savedBooks.set(code,entries.slice(-BOOKSHELF_LIMIT).filter(b=>b && typeof b.id==='string' && typeof b.text==='string' && typeof b.title==='string' && typeof b.author==='string'));
+  }
+}catch(e){if(e.code!=='ENOENT')console.warn('서가 저장 기록을 읽을 수 없습니다:',e.message)}
+function persistBooks(){
+  fs.mkdirSync(BOOKSHELF_DIR,{recursive:true});
+  const obj=Object.fromEntries(savedBooks);
+  const tmp=BOOKSHELF_FILE+'.tmp';
+  fs.writeFileSync(tmp,JSON.stringify(obj),'utf8');
+  fs.renameSync(tmp,BOOKSHELF_FILE);
+}
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.json':'application/json; charset=utf-8'};
 const server = http.createServer((req,res)=>{
   const target = new URL(req.url,'http://localhost');
@@ -52,11 +71,11 @@ function rate(c,key,ms){const now=Date.now();if(now-(c.last[key]||0)<ms)return f
 function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return;
   if(msg.t==='join'){
     if(c.room)return;const code=safeStr(msg.code,18).toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
-    let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],lampOn:true,emptyAt:0};rooms.set(code,room)}
+    let room=rooms.get(code);if(!room){room={code,clients:new Map(),reading:null,history:[],books:savedBooks.get(code)||[],lampOn:true,emptyAt:0};rooms.set(code,room)}
     room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,lampOn:room.lampOn!==false,limit:LIMIT});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books,lampOn:room.lampOn!==false,limit:LIMIT});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -102,6 +121,24 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       if(!['joy','sad','anger','worry','peace','hope'].includes(kind))return;
       // Only the explicitly shared mood label is broadcast; reflection notes remain on the user's device.
       broadcast(room,{t:'mood',id:c.id,name:c.name,kind,at:Date.now()});break;
+    }
+    case 'shelfAdd':{
+      if(!rate(c,'shelfAdd',1600))return;
+      const title=safeStr(msg.title,80)||'제목 없는 글';
+      const text=safeStr(msg.text,10000);
+      if(!text){send(c,{t:'error',message:'책장에 꽂을 글을 먼저 작성해 주세요.'});return}
+      if(room.books.length>=BOOKSHELF_LIMIT){send(c,{t:'error',message:'이 모임방의 책장이 가득 찼어요(64권).'});return}
+      const entry={id:crypto.randomUUID(),title,text,author:c.name,createdAt:Date.now()};
+      const next=[...room.books,entry];
+      savedBooks.set(room.code,next);
+      try{persistBooks()}catch(e){
+        savedBooks.set(room.code,room.books);
+        console.error('책장 저장 실패:',e.message);
+        send(c,{t:'error',message:'서버에 책을 저장하지 못했어요. 서버 저장 공간을 확인해 주세요.'});return;
+      }
+      room.books=next;
+      broadcast(room,{t:'shelfBook',book:entry});
+      break;
     }
     case 'reading':{
       if(!rate(c,'reading',1500))return;
