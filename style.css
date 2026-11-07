@@ -422,3 +422,255 @@
 .overheadReaction:after{content:"";position:absolute;bottom:-9px;left:50%;transform:translateX(-50%) rotate(45deg);width:12px;height:12px;background:rgba(43,30,47,.94);border-right:2px solid #ffe2b8;border-bottom:2px solid #ffe2b8}
 @keyframes reactionHeadFade{0%{opacity:0;scale:.8}12%{opacity:1;scale:1}76%{opacity:1;scale:1}100%{opacity:0;scale:.9}}
 @media(max-width:700px){.overheadReaction{min-width:43px;min-height:43px;font-size:26px;border-radius:13px}.libraryOwnerHelp{font-size:11px}}
+
+/* V14.17 — Show shared books and editable unpublished writing separately. */
+.libraryChoices.libraryBookGrid{display:block;max-height:min(51dvh,520px);overflow:auto;padding:5px 5px 15px}
+.libraryBookGroup{margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #dbc8bf}
+.libraryGroupHeading{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin:6px 0 12px;color:#513e43}
+.libraryGroupHeading strong{font-size:14px;font-weight:850}
+.libraryGroupHeading small{font-size:10px;color:#75606b;line-height:1.7}
+.libraryBookTiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:14px;align-items:start}
+.libraryBookCover.private-cover{background:linear-gradient(150deg,#eae1d2,#c1a8a1);border-color:#997f7d;color:#49343f}
+.libraryBookCover.private-cover .libraryCoverBottom{color:#50373a;font-weight:850}
+#libraryRestore:not([hidden]){display:block;width:100%;margin:12px 0;border:1px solid #6e587d;border-radius:11px;background:#6e587d;color:#fff;padding:13px;font-size:13px;font-weight:850;cursor:pointer}
+#librarySave{font-weight:850}
+@media(max-width:700px){.libraryChoices.libraryBookGrid{max-height:min(42dvh,390px)}.libraryBookTiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+
+/* v14.18: explicit book selection, unambiguous single-tap publishing. */
+.libraryPublish{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.libraryPublishLabel{flex-basis:100%;color:#4d3b31;font-size:12px;line-height:1.5}
+.libraryPublishLabel strong{color:#8b352e}
+#libraryPublishSelect{flex:1 1 180px;min-width:0;padding:11px 12px;border-radius:9px;border:1px solid #a98775;background:#fffdf8;color:#302c29;font-size:13px}
+#libraryPublishSelect:focus-visible,.libraryTilePublish:focus-visible{outline:3px solid #c9985a;outline-offset:2px}
+.libraryTilePublish{margin-top:-3px;margin-bottom:10px;border-radius:9px;padding:9px 11px;font-size:12px;font-weight:750;color:#fffdf7;background:#79604e;border:0;cursor:pointer}
+.libraryTilePublish:hover{background:#594536}.libraryTilePublish:disabled{opacity:.55;cursor:wait}
+.libraryPublish button{flex:0 1 auto}
+
+.libraryBookEntry{display:flex;flex-direction:column;gap:8px;min-width:0}
+.libraryBookEntry>.libraryBookTile{width:100%;flex:1}
+.libraryBookEntry>.libraryTilePublish{width:100%;margin:0;font-size:11px}
+
+/* V14.19 · Character count and legible publishing feedback. */
+.libraryPublishCount{width:100%;display:block;color:#453b32;font-size:12px;font-weight:700;line-height:1.5}
+.libraryPublishCount[data-over="true"]{color:#9e2525;background:#fff0ef;padding:7px 9px;border:1px solid #ce6060;border-radius:7px}
+#libraryFeedback.libraryFeedback[data-kind="error"]{background:#fff0ef;color:#8a1b1b;border-color:#bb4141}
+#libraryFeedback.libraryFeedback[data-kind="success"]{background:#ecf8ee;color:#175b33;border-color:#82ae90}
+@media(max-width:700px){.libraryPublishCount{font-size:11px}}
+
+/* v14.20 — compact book gallery: show at least nine published book covers
+   in the first viewport when nine or more are available. The reading page
+   and editing/publishing flows keep their original layouts. */
+.libraryCard{width:min(930px,100%);max-height:calc(100dvh - 18px)}
+.libraryShelfView .libraryGalleryTools{margin-top:11px;gap:10px}
+.libraryShelfView .libraryGallerySummary strong{font-size:14px}
+.libraryShelfView .libraryGallerySummary small{font-size:10px}
+.libraryShelfView .librarySearchLabel{gap:2px;font-size:10px}
+.libraryShelfView .librarySearchLabel input{padding:8px 10px}
+.libraryChoices.libraryBookGrid{max-height:min(65dvh,610px);padding:3px 4px 12px;margin:8px 0 12px}
+.libraryBookGroup{margin-bottom:12px;padding-bottom:10px}
+.libraryGroupHeading{margin:3px 0 7px;gap:6px}
+.libraryGroupHeading strong{font-size:13px}
+.libraryGroupHeading small{font-size:10px}
+.libraryBookTiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 11px}
+.libraryBookEntry{gap:5px;align-items:stretch}
+.libraryChoices.libraryBookGrid .libraryBookTile{justify-content:flex-start;gap:0}
+.libraryBookEntry .libraryBookTileLabel,
+.libraryBookEntry .libraryBookTileBy{display:none}
+.libraryBookEntry .libraryBookCover{
+ width:100%;min-height:126px;max-height:126px;box-sizing:border-box;
+ padding:9px 10px 8px 16px;gap:3px;overflow:hidden;
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTop{font-size:8px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverMotif{font-size:14px;line-height:1;margin:0 auto}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{
+ font-size:13px;line-height:1.3;min-height:0;-webkit-line-clamp:2;
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{
+ font-size:10px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverBottom{
+ font-size:9px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+ padding-top:4px;
+}
+.libraryBookEntry>.libraryTilePublish{font-size:10px;padding:7px 5px}
+@media(max-width:700px){
+ .libraryCard{padding:12px 11px;max-height:calc(100dvh - 12px)}
+ .libraryHeader h2{font-size:17px;margin:3px 0}
+ .libraryHeader p{font-size:10px;line-height:1.4}
+ .libraryEyebrow{font-size:9px}
+ .libraryShelfView .libraryGalleryTools{gap:6px;margin-top:8px}
+ .libraryShelfView .libraryGallerySummary{gap:0}
+ .libraryShelfView .libraryGallerySummary strong{font-size:12px}
+ .libraryShelfView .libraryGallerySummary small{font-size:9px}
+ .libraryShelfView .librarySearchLabel{flex:1 1 100%;gap:2px;font-size:10px}
+ .libraryShelfView .librarySearchLabel input{padding:7px 10px;font-size:14px}
+ .libraryChoices.libraryBookGrid{max-height:min(62dvh,530px);padding:2px 3px 10px;margin:4px 0 10px}
+ .libraryGroupHeading{margin:2px 0 6px}
+ .libraryGroupHeading strong{font-size:12px}
+ .libraryGroupHeading small{font-size:9px}
+ .libraryBookTiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px 6px}
+ .libraryBookEntry .libraryBookCover{min-height:102px;max-height:102px;padding:7px 4px 6px 10px;gap:3px;border-radius:4px 8px 8px 4px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTop{font-size:6.5px;line-height:1.1;letter-spacing:0}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverMotif{display:none}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:10.5px;line-height:1.25;-webkit-line-clamp:2}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:8.5px;line-height:1.2}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverBottom{font-size:7px;line-height:1.15;padding-top:4px}
+ .libraryBookEntry>.libraryTilePublish{font-size:9px;padding:6px 3px}
+}
+@media(max-width:370px){
+ .libraryBookEntry .libraryBookCover{min-height:96px;max-height:96px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:9.5px}
+}
+@media(max-width:700px) and (max-height:680px){
+ .libraryHeader p{display:none}
+ .libraryShelfView .libraryGallerySummary small{display:none}
+ .libraryShelfView .libraryGalleryTools{margin-top:6px}
+ .libraryBookEntry .libraryBookCover{min-height:90px;max-height:90px}
+ .libraryBookTiles{gap:5px 6px}
+ .libraryChoices.libraryBookGrid{max-height:min(68dvh,475px)}
+}
+
+
+/* v14.21 — readable book covers. Only the book title and the author's name
+   appear inside each cover; ownership controls remain in the book reader. */
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{
+ display:flex;flex-direction:column;justify-content:center;align-items:center;
+ gap:11px;padding:11px 12px 10px 19px;
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;
+ overflow:hidden;overflow-wrap:anywhere;
+ font-family:'Noto Serif KR',Georgia,serif;font-size:18px;line-height:1.28;
+ font-weight:800;letter-spacing:-.35px;text-align:center;min-height:0;
+ color:#fffdf8;text-shadow:0 1px 2px #261e2c35;
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{
+ display:block;max-width:100%;font-size:14px;line-height:1.25;
+ font-weight:750;letter-spacing:-.2px;white-space:normal;overflow:hidden;
+ overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+ text-align:center;color:#fffdf8;text-shadow:0 1px 2px #261e2c30;
+}
+/* Private covers have pale cloth colors, so use dark ink for contrast. */
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover.private-cover .libraryCoverTitle,
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover.private-cover .libraryCoverAuthor{
+ color:#352a32;text-shadow:none;
+}
+@media(max-width:700px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{
+  gap:7px;padding:7px 5px 6px 12px;
+ }
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{
+  font-size:15px;line-height:1.2;letter-spacing:-.4px;-webkit-line-clamp:3;
+ }
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{
+  font-size:12px;line-height:1.2;letter-spacing:-.15px;-webkit-line-clamp:2;
+ }
+}
+@media(max-width:370px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{gap:5px;padding:6px 4px 6px 11px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:13.5px;letter-spacing:-.4px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:11px}
+}
+@media(max-width:700px) and (max-height:680px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{gap:4px;padding-top:5px;padding-bottom:5px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:13px;line-height:1.15}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:11px;line-height:1.15}
+}
+
+
+/* v14.22 — cover hierarchy: title 3/5, separated author band 2/5.
+   The compact 3-column shelf, book ownership and publishing behaviors are unchanged. */
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{
+ display:flex;flex-direction:column;align-items:stretch;justify-content:stretch;
+ gap:0;padding:0 0 0 8px;overflow:hidden;height:126px;
+}
+.libraryBookCover .libraryCoverTitleBand,
+.libraryBookCover .libraryCoverAuthorBand{
+ box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+ flex-shrink:0;min-width:0;min-height:0;width:100%;text-align:center;
+}
+.libraryBookCover .libraryCoverTitleBand{
+ flex-basis:60%;height:60%;padding:5px 9px 4px;
+}
+.libraryBookCover .libraryCoverAuthorBand{
+ flex-basis:40%;height:40%;padding:5px 7px;
+ border-top:1px solid rgba(255,250,236,.58);
+ background:rgba(17,14,19,.11);
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{
+ flex:0 1 auto;max-width:100%;max-height:100%;min-height:0;
+ font-size:18px;line-height:1.24;-webkit-line-clamp:3;
+}
+.libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{
+ flex:0 1 auto;max-width:100%;max-height:100%;min-height:0;
+ font-size:13px;line-height:1.24;-webkit-line-clamp:2;
+ font-weight:750;white-space:normal;overflow-wrap:anywhere;
+}
+.libraryBookCover.private-cover .libraryCoverAuthorBand{
+ border-top-color:rgba(79,54,63,.38);background:rgba(255,255,255,.15);
+}
+@media(max-width:700px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{gap:0;padding:0 0 0 7px;height:102px}
+ .libraryBookCover .libraryCoverTitleBand{padding:3px 5px}
+ .libraryBookCover .libraryCoverAuthorBand{padding:3px 3px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:15px;line-height:1.15}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:11.5px;line-height:1.17}
+}
+@media(max-width:370px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{height:96px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:13.5px;line-height:1.12}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:10.5px;line-height:1.13}
+}
+@media(max-width:700px) and (max-height:680px){
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookCover{gap:0;padding:0 0 0 7px;height:102px}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverTitle{font-size:13px;line-height:1.13}
+ .libraryChoices.libraryBookGrid .libraryBookTile .libraryCoverAuthor{font-size:10.5px;line-height:1.12}
+}
+
+/* v14.23: make persistence status unmistakable without covering the 3x3 cover gallery. */
+.libraryStorageStatus{margin:5px 0 9px;padding:8px 11px;border:1px solid #d9c99f;border-radius:9px;background:#fff7e7;color:#684416;font-size:12px;font-weight:650;line-height:1.45}
+.libraryStorageStatus[data-kind="success"]{background:#ebf7ee;color:#174e2c;border-color:#a5d3b0}
+.libraryStorageStatus[data-kind="error"]{background:#fff0f0;color:#8a1926;border-color:#df8994}
+.libraryBookCover.missing-cover{outline:2px dashed #b87c41;outline-offset:-4px}
+
+
+/* v14.24 — author-by-author shared shelf; the 3:2 covers and three-column grid remain. */
+.libraryAuthorFilterBar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 7px;padding:9px 11px;border:1px solid #d9c9ba;border-radius:11px;background:#fffaf3;color:#493c37}
+.libraryAuthorFilterBar label{font-size:13px;font-weight:850;white-space:nowrap}
+#libraryAuthorFilter{flex:0 1 230px;min-width:135px;max-width:100%;padding:8px 31px 8px 10px;border:1px solid #b99c8d;border-radius:9px;background:#fffdf8;color:#49362f;font-size:13px;font-weight:750;cursor:pointer}
+#libraryAuthorFilter:focus-visible{outline:3px solid #af8599;outline-offset:2px}
+.libraryAuthorFilterHint{flex:1 1 175px;font-size:11px;color:#806c62}
+.libraryBookGroup.libraryAuthorSection{padding:10px 11px 13px;border:1px solid #dac6bb;border-left:4px solid #96748d;border-radius:12px;background:linear-gradient(115deg,#fffaf3,#f4ece8);margin:10px 0 12px}
+.libraryAuthorHeading{display:flex;align-items:center;gap:10px;margin:0 0 9px}
+.libraryAuthorHeading .libraryHeadingTexts{display:flex;flex-direction:column;gap:3px;min-width:0}
+.libraryAuthorHeading .libraryHeadingTexts strong{color:#4b394b;font-size:15px;font-weight:850}
+.libraryAuthorHeading .libraryHeadingTexts small{color:#795f6b;font-size:11px}
+.libraryAuthorAvatar{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#826a82;color:white;font-weight:850;font-size:16px;box-shadow:0 2px 5px #533d5430}
+.libraryAuthorSection:nth-child(3n+2){border-left-color:#8c7a59;background:linear-gradient(115deg,#fffbf4,#f6efdf)}
+.libraryAuthorSection:nth-child(3n+2) .libraryAuthorAvatar{background:#86734f}
+.libraryAuthorSection:nth-child(3n+3){border-left-color:#71928e;background:linear-gradient(115deg,#fdfaf3,#eaf2ee)}
+.libraryAuthorSection:nth-child(3n+3) .libraryAuthorAvatar{background:#63827e}
+/* One continuous document: scrolling the outer library card reveals every paragraph. */
+.libraryReaderView{max-width:760px;margin:0 auto}
+.libraryReaderToolbar{position:sticky;top:-3px;z-index:2;padding:9px 5px;background:#f8f0e5f7;border-bottom:1px solid #ddcabc;backdrop-filter:blur(5px)}
+.libraryReaderView .libraryPaper{margin:12px 0 16px;max-width:none}
+.libraryReaderView .libraryContinuousText{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:2.04;font-size:16px;color:#413633;min-height:0;overflow:visible;max-height:none}
+.libraryReaderView .libraryScrollIntro{font-size:12px;color:#806b5e;margin:8px 0 20px;padding-bottom:13px;border-bottom:1px solid #eee1d6}
+.libraryReadingEnd{display:flex;align-items:center;justify-content:center;gap:12px;margin:30px 0 5px;padding-top:18px;border-top:1px solid #eaddcf;color:#977c6e;font-size:12px;letter-spacing:.12em}
+@media(max-width:700px){
+ .libraryAuthorFilterBar{gap:6px;padding:7px 8px;margin:6px 0}
+ .libraryAuthorFilterBar label{font-size:11px}
+ #libraryAuthorFilter{flex:1 1 145px;font-size:12px;min-width:0;padding:7px 20px 7px 9px}
+ .libraryAuthorFilterHint{display:none}
+ .libraryBookGroup.libraryAuthorSection{padding:7px 6px 9px;margin:8px 0 10px}
+ .libraryAuthorHeading{gap:7px;margin-bottom:7px}
+ .libraryAuthorAvatar{width:25px;height:25px;font-size:13px}
+ .libraryAuthorHeading .libraryHeadingTexts strong{font-size:13px}
+ .libraryAuthorHeading .libraryHeadingTexts small{font-size:10px}
+ .libraryReaderView .libraryContinuousText{font-size:15px;line-height:1.98}
+ .libraryReaderView .libraryScrollIntro{font-size:11px}
+}
+/* Keep the earlier nine-cover first-screen layout on desktop despite author headers. */
+@media(min-width:701px){
+ .libraryBookGroup.libraryAuthorSection .libraryBookCover{min-height:105px;max-height:105px;height:105px}
+}

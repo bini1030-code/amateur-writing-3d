@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.23.0",
+  "version": "14.24.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D — 공개 책 영구 저장소 지원 · 공개 상태 오류 해결",
+  "description": "아마추어 글쓰기 3D — 글쓴이별 책장 · 끊김 없는 스크롤 읽기 · Supabase 영구 저장",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
