@@ -298,3 +298,28 @@
 .faceInfoBody{border-radius:18px;background:#fffefd;border:1px solid #e6dde8;padding:16px 18px;color:#5a4b60;font-size:14px;line-height:1.95}
 .faceInfoBody p{margin:0;white-space:pre-line}
 @media(max-width:700px){.faceInfoHero{padding:12px 13px;border-radius:16px}.faceInfoHero span{font-size:34px}.faceInfoHero strong{font-size:22px}.faceInfoBody{padding:13px 14px;font-size:13px;line-height:1.85}}
+
+
+/* v14.12: high contrast bookshelf save feedback on LIGHT parchment card */
+#libraryFeedback.libraryFeedback{
+ display:block;
+ font-size:13px;line-height:1.7;font-weight:700;
+ margin:4px 0 14px;padding:12px 15px;
+ border:2px solid #86715e;border-radius:11px;
+ background:#fffdf8;color:#312b29;
+ overflow-wrap:anywhere;white-space:normal;
+ box-shadow:0 2px 8px rgba(50,35,28,.08);
+}
+#libraryFeedback.libraryFeedback[data-kind="success"]{
+ color:#154b2d;background:#e2f4e7;border-color:#338454;
+}
+#libraryFeedback.libraryFeedback[data-kind="error"]{
+ color:#851723;background:#ffedf0;border-color:#cf4052;
+}
+#libraryFeedback.libraryFeedback[data-kind="loading"]{
+ color:#694608;background:#fff2ce;border-color:#b98221;
+}
+#libraryFeedback.libraryFeedback[data-kind="warning"]{
+ color:#603e09;background:#ffedc2;border-color:#bb7920;
+}
+@media(max-width:700px){#libraryFeedback.libraryFeedback{font-size:12px;line-height:1.65;padding:11px 12px}}

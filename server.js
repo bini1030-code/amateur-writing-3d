@@ -8,6 +8,7 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
+const APP_VERSION = '14.12.0';
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
@@ -16,6 +17,8 @@ const BOOKSHELF_LIMIT=64;
 const BOOKSHELF_DIR=process.env.BOOKSHELF_DATA_DIR || path.join(__dirname,'data');
 const BOOKSHELF_FILE=path.join(BOOKSHELF_DIR,'room-books.json');
 const savedBooks=new Map();
+// Books shared only in memory due to server disk failure; never label their ACK as durable.
+const transientBookIds=new Set();
 try{
   const raw=JSON.parse(fs.readFileSync(BOOKSHELF_FILE,'utf8'));
   for(const [code,entries] of Object.entries(raw)){
@@ -33,7 +36,7 @@ function persistBooks(){
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.json':'application/json; charset=utf-8'};
 const server = http.createServer((req,res)=>{
   const target = new URL(req.url,'http://localhost');
-  if (target.pathname === '/health') {res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify({ok:true,rooms:rooms.size}));}
+  if (target.pathname === '/health') {res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify({ok:true,rooms:rooms.size,version:APP_VERSION,shelfStorage:process.env.BOOKSHELF_DATA_DIR?'configured-directory':'ephemeral'}));}
   let name;try{name=target.pathname==='/'?'/index.html':decodeURIComponent(target.pathname)}catch(e){res.writeHead(400);return res.end('Bad path')}
   const file=path.resolve(ROOT,'.'+name);
   if(!file.startsWith(ROOT+path.sep)){res.writeHead(403);return res.end('Forbidden')}
@@ -75,7 +78,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     room.emptyAt=0;
     if(room.clients.size>=LIMIT){send(c,{t:'error',message:'이 방은 20명 정원입니다.'});cleanRoom(room);return}
     c.name=safeStr(msg.name,18).replace(/[<>]/g,'')||'밤의 필자';c.color=Math.floor(finite(msg.color,0,5,0));c.gender=msg.gender==='female'?'female':'male';c.x=-2.2+(room.clients.size%5)*1.1;c.z=9.1+Math.floor(room.clients.size/5)*.48;c.rot=Math.PI;c.action='stand';c.room=room;room.clients.set(c.id,c);
-    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books,lampOn:room.lampOn!==false,limit:LIMIT});
+    send(c,{t:'welcome',id:c.id,code,people:peers(room),reading:room.reading,history:room.history,books:room.books,lampOn:room.lampOn!==false,limit:LIMIT,serverVersion:APP_VERSION,features:['shelf-save-ack-v2']});
     broadcast(room,{t:'join',person:peers(room).find(p=>p.id===c.id)},c);
     return;
   }
@@ -118,7 +121,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
     case 'mood':{
       if(!rate(c,'mood',1800))return;
       const kind=safeStr(msg.kind,10);
-      if(!['joy','sad','anger','worry','peace','hope'].includes(kind))return;
+      if(!['joy','sad','anger','worry','peace','hope','depression','anxiety','addiction','madness','love'].includes(kind))return;
       // Only the explicitly shared mood label is broadcast; reflection notes remain on the user's device.
       broadcast(room,{t:'mood',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
@@ -128,7 +131,7 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       const requestId=typeof msg.requestId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(msg.requestId)?msg.requestId:'';
       const fail=message=>send(c,{t:'shelfError',requestId,message});
       const prior=requestId&&room.books.find(b=>b.requestId===requestId);
-      if(prior){send(c,{t:'shelfAck',requestId,book:prior});return}
+      if(prior){send(c,{t:'shelfAck',requestId,book:prior,storage:transientBookIds.has(prior.id)?'temporary':'file',reason:transientBookIds.has(prior.id)?'서버 파일 저장 실패 후 임시 공유 중':''});return}
       if(!rate(c,'shelfAdd',1200)){fail('등록 요청을 처리하는 중이에요. 잠시 후 다시 눌러 주세요.');return}
       const title=safeStr(msg.title,80)||'제목 없는 글';
       const text=safeStr(msg.text,10000);
@@ -139,13 +142,18 @@ function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))return
       const entry={id:crypto.randomUUID(),title,text,author:c.name,createdAt:Date.now(),...(requestId?{requestId}:{})};
       const next=[...room.books,entry];
       savedBooks.set(room.code,next);
-      try{persistBooks()}catch(e){
-        savedBooks.set(room.code,room.books);
-        console.error('책장 저장 실패:',e.message);
-        fail('서버에 책을 저장하지 못했습니다. 관리자가 저장 공간을 확인해야 해요. 작성한 글은 이 기기에 그대로 남아 있습니다.');return;
+      let storage='file',reason='';
+      try{persistBooks();transientBookIds.clear()}catch(e){
+        transientBookIds.add(entry.id);
+        // Keep the book in the live room and on all participants' local browser caches.
+        // Never claim the server disk persisted it when the write failed.
+        storage='temporary';
+        const reasons={EROFS:'서버 저장 공간이 읽기 전용입니다',EACCES:'서버 저장 권한이 없습니다',ENOSPC:'서버 저장 공간이 부족합니다'};
+        reason=reasons[e.code]||'서버 파일에 쓸 수 없습니다';
+        console.error('책장 디스크 저장 실패:',e.code||'UNKNOWN',e.message);
       }
       room.books=next;
-      send(c,{t:'shelfAck',requestId,book:entry});
+      send(c,{t:'shelfAck',requestId,book:entry,storage,reason});
       broadcast(room,{t:'shelfBook',book:entry});
       break;
     }
@@ -191,7 +199,11 @@ server.on('upgrade',(req,socket)=>{
       if(len>32000||!(b[1]&128)){socket.destroy();return}if(b.length<offset+4+len)return;
       const mask=b.subarray(offset,offset+4),payload=Buffer.from(b.subarray(offset+4,offset+4+len));for(let i=0;i<len;i++)payload[i]^=mask[i%4];c.buffer=b.subarray(offset+4+len);
       if(op===8){socket.end();return}if(op===9){socket.write(Buffer.from([0x8a,payload.length,...payload]));continue}if(op===10)continue;if(op!==1||!fin){socket.destroy();return}
-      try{handle(c,JSON.parse(payload.toString('utf8')))}catch(e){};
+      try{handle(c,JSON.parse(payload.toString('utf8')))}catch(e){
+        console.error('WebSocket 처리 오류:',e.stack||e.message);
+        let m;try{m=JSON.parse(payload.toString('utf8'))}catch(_){m=null}
+        if(m?.t==='shelfAdd')send(c,{t:'shelfError',requestId:typeof m.requestId==='string'?m.requestId:'',message:'서버 내부 오류로 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.'});
+      };
     }
   });
   socket.on('error',()=>{});socket.on('close',()=>leave(c));

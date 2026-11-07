@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.10.0",
+  "version": "14.12.0",
   "private": true,
-  "description": "아마추어 글쓰기 v14.10: 두 방 책장 디자인 통일 및 심리방 원형 테이블 마음 활동 복구",
+  "description": "아마추어 글쓰기 3D v14.12 - 책장 저장 응답·배포 확인·오류 가독성 수정",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
