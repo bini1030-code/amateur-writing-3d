@@ -1071,19 +1071,16 @@ function renderLibraryGallery(){
   for(const b of entries){
    const btn=document.createElement('button');btn.type='button';btn.className='libraryBookTile';
    btn.dataset.libraryBook=b.id;
-   const published=libraryState.publishedIds.has(b.id),privateBook=canEditPrivate(b);
+   const privateBook=canEditPrivate(b);
    btn.setAttribute('aria-label',`『${b.title}』, 글쓴이 ${b.author}${privateBook?' (나만 볼 수 있는 비공개 글)':''} — 펼쳐 읽기`);
    const cover=document.createElement('span');cover.className='libraryBookCover tone-'+coverToneFor(b.id);
    if(privateBook)cover.classList.add('private-cover');
-   const top=document.createElement('span');top.className='libraryCoverTop';top.textContent=privateBook?'🔒 나만 보는 글 · DRAFT':'밤의 문장들 · OUR STORIES';
-   const motif=document.createElement('span');motif.className='libraryCoverMotif';motif.textContent=privateBook?'✎':'✦';motif.setAttribute('aria-hidden','true');
+   // Covers intentionally contain ONLY the title and the writer's name.
+   // Group headings above the gallery already identify shared vs. private works.
    const title=document.createElement('strong');title.className='libraryCoverTitle';title.textContent=b.title;
-   const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent='글쓴이 · '+b.author;
-   const foot=document.createElement('span');foot.className='libraryCoverBottom';foot.textContent=privateBook?'비공개 · 수정/삭제 가능':canEditBook(b)?'내 책 · 수정/삭제 가능':published?(b.author===state.name?'내 책 · 관리 권한 확인 필요':'모임방 공유 중'):'이 기기에만 보관';
-   cover.append(top,motif,title,author,foot);
-   const label=document.createElement('span');label.className='libraryBookTileLabel';label.textContent=b.title;
-   const by=document.createElement('span');by.className='libraryBookTileBy';by.textContent=privateBook?'🔒 내 비공개 글':'✍ '+b.author;
-   btn.append(cover,label,by);
+   const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent=b.author;
+   cover.append(title,author);
+   btn.append(cover);
    const entry=document.createElement('div');entry.className='libraryBookEntry';entry.append(btn);
    if(privateBook){
     const action=document.createElement('button');action.type='button';action.className='libraryTilePublish';

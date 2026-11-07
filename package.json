@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.20.0",
+  "version": "14.21.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D — 책장 9권 이상 한눈에 보는 컴팩트 갤러리",
+  "description": "아마추어 글쓰기 3D — 책 표지는 제목과 글쓴이만 크게 표시하는 컴팩트 갤러리",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
