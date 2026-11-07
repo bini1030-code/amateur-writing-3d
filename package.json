@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.18.0",
+  "version": "14.19.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D — 책장 공개 글 선택 버그 수정, 명확한 저장 상태 표시",
+  "description": "아마추어 글쓰기 3D — 10,000자 책 공개 전용 HTTP 경로 및 오류 원인 표시",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

@@ -449,3 +449,10 @@
 .libraryBookEntry{display:flex;flex-direction:column;gap:8px;min-width:0}
 .libraryBookEntry>.libraryBookTile{width:100%;flex:1}
 .libraryBookEntry>.libraryTilePublish{width:100%;margin:0;font-size:11px}
+
+/* V14.19 · Character count and legible publishing feedback. */
+.libraryPublishCount{width:100%;display:block;color:#453b32;font-size:12px;font-weight:700;line-height:1.5}
+.libraryPublishCount[data-over="true"]{color:#9e2525;background:#fff0ef;padding:7px 9px;border:1px solid #ce6060;border-radius:7px}
+#libraryFeedback.libraryFeedback[data-kind="error"]{background:#fff0ef;color:#8a1b1b;border-color:#bb4141}
+#libraryFeedback.libraryFeedback[data-kind="success"]{background:#ecf8ee;color:#175b33;border-color:#82ae90}
+@media(max-width:700px){.libraryPublishCount{font-size:11px}}

@@ -7,7 +7,7 @@ const prompts=['어느 날 문득 나를 위로해 준 작은 말','지금 다�
 let saved={};try{saved=JSON.parse(localStorage.getItem('amateur-writing-live-v2')||'{}')}catch(e){}
 const state={name:saved.name||'',code:new URLSearchParams(location.search).get('room')||saved.code||'NIGHT',color:saved.color||0,gender:saved.gender==='female'?'female':'male',notes:saved.notes||'',topic:saved.topic||'',title:saved.title||'',story:saved.story||'',step:0,read:null,connected:false,me:null,mic:false,muted:false,room:'main',sitting:false,restSpot:null,lampOn:true,timer:20*60,running:false};
 const SHELF_MAX_CHARS=10000;
-const SHELF_MAX_BYTES=65000;
+const SHELF_MAX_BYTES=256*1024;
 const DRAFT_LIMIT=80;
 const DRAFT_STORAGE_KEY='amateur-writing-personal-drafts-v1';
 const charCount=value=>[...String(value||'')].length;
@@ -193,7 +193,7 @@ function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($(
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.shelfSaveSupported=!!p.features?.includes('shelf-save-ack-v2');state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});
+  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.shelfSaveSupported=!!p.features?.includes('shelf-save-ack-v2');state.shelfHttpPublishSupported=!!p.features?.includes('shelf-http-publish-v1');state.serverVersion=p.serverVersion||'';state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});
    if(!state.shelfManageSupported)shelfFeedback('현재 서버에 수정·삭제 기능이 없습니다. GitHub에서 server.js와 public 폴더를 함께 업로드하고 Render 배포 후 /health 버전을 확인해 주세요.','warning');
    else if(!p.features?.includes('shelf-save-ack-v2'))shelfFeedback('서버가 최신 책장 저장 기능을 확인해 주지 않았습니다. GitHub 루트의 server.js와 public 폴더를 함께 업로드해 주세요.','warning');
    if(p.reading)showReading(p.reading);break;
@@ -757,6 +757,16 @@ function displayLibraryBooks(){
  return [...published,...cached,...localDrafts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
 }
 const displayBook=id=>displayLibraryBooks().find(b=>b.id===id);
+function updatePublishCount(){
+ const display=$('#libraryPublishCount'),select=$('#libraryPublishSelect');
+ if(!display||!select)return;
+ const draft=drafts.find(d=>d.id===select.value);
+ const chars=charCount((draft?.story||'').trim());
+ const excess=Math.max(0,chars-SHELF_MAX_CHARS);
+ display.dataset.over=excess?'true':'false';
+ display.textContent=excess?`본문 ${chars.toLocaleString()}자 / 최대 ${SHELF_MAX_CHARS.toLocaleString()}자 — ${excess.toLocaleString()}자를 줄여야 공개할 수 있습니다.`:`본문 ${chars.toLocaleString()}자 / 최대 ${SHELF_MAX_CHARS.toLocaleString()}자 · 한글도 10,000자까지 공개할 수 있습니다.`;
+}
+
 function savePrivateDraftBook(book,title,text){
  const draft=drafts.find(d=>d.id===privateDraftId(book));
  if(!draft){libraryActionFeedback('비공개 초안을 찾을 수 없습니다. 내 글 목록에서 확인해 주세요.','error');return false}
@@ -862,7 +872,7 @@ function publishToShelf(book=null){
  if(!state.connected){shelfFeedback('먼저 모임방에 접속해 주세요.','error');return}
  if(!state.shelfSaveSupported){
   if(!libraryState.open)openLibrary(true);
-  shelfFeedback('서버 버전이 맞지 않아 공개 기능을 사용할 수 없습니다. GitHub 루트의 server.js와 public 폴더를 모두 v14.18로 교체한 뒤 Render를 다시 배포해 주세요. /health에서 버전을 확인할 수 있습니다.','error');
+  shelfFeedback('서버 버전이 맞지 않아 공개 기능을 사용할 수 없습니다. GitHub 루트의 server.js와 public 폴더를 모두 v14.19로 교체한 뒤 Render를 다시 배포해 주세요. /health에서 버전을 확인할 수 있습니다.','error');
   return;
  }
  if(shelfPending){shelfFeedback('이미 저장 요청을 처리 중입니다. 현재 작업이 끝날 때까지 기다려 주세요.','loading');return}
@@ -891,17 +901,50 @@ function publishToShelf(book=null){
  if(!socket||socket.readyState!==WebSocket.OPEN){shelfFeedback('서버 연결이 끊어졌습니다. 다시 접속한 뒤 저장해 주세요. 초안은 이 기기에 남아 있습니다.','error');return}
  shelfPending={requestId,title,ownerKey:payload.ownerKey};shelfBusy(true);
  shelfFeedback(`『${title}』 (${count.toLocaleString()}자)을(를) 서버에 저장하는 중입니다. 성공/실패는 여기에 표시됩니다.`,'loading');
+ if(state.shelfHttpPublishSupported){
+  // Normal HTTP response: reliably reports 400/403/413/422/500 and detailed reasons.
+  publishShelfHttp({...payload,room:state.code,name:state.name});
+  return;
+ }
+ // Backward-compatible WebSocket path for servers that have not deployed v14.19.
+ shelfFeedback('구버전 서버가 실행 중입니다. 기존 통신 방식으로 시도하지만 안정적인 공개를 위해 GitHub와 Render 서버를 v14.19로 업데이트해 주세요.','warning');
  try{socket.send(JSON.stringify(payload))}catch(e){shelfFailed('전송 실패: 네트워크 연결을 확인해 주세요. 초안은 이 기기에 남아 있습니다.',requestId);return}
  shelfTimer=setTimeout(()=>{
   if(shelfPending?.requestId!==requestId)return;
   if(socket?.readyState===WebSocket.OPEN){
-   shelfFeedback('서버 응답이 지연되어 동일한 요청으로 저장 상태를 다시 확인하고 있어요. 중복 등록하지 않습니다.','loading');
+   shelfFeedback('서버 응답이 지연돼 다시 확인 중입니다. 중복 등록하지 않습니다.','loading');
    try{socket.send(JSON.stringify(payload))}catch(e){}
   }
-  shelfTimer=setTimeout(()=>{
-   if(shelfPending?.requestId===requestId)shelfFailed('서버가 19초 안에 저장 결과를 보내지 않았습니다. Render 배포 상태와 GitHub 루트의 server.js 및 public/game.js 버전을 확인해 주세요. 초안은 보관돼 있습니다.',requestId);
-  },10000);
+  shelfTimer=setTimeout(()=>{if(shelfPending?.requestId===requestId)shelfFailed('서버 응답이 없습니다. /health 버전을 확인하고 다시 시도해 주세요.',requestId)},10000);
  },9000);
+}
+
+// V14.19: publication result is taken from the HTTP status and JSON error code.
+async function publishShelfHttp(payload){
+ const requestId=payload.requestId;
+ for(let attempt=0;attempt<2;attempt++){
+  if(shelfPending?.requestId!==requestId)return;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  try{
+   const response=await fetch('/api/shelf/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store',signal:controller.signal,credentials:'same-origin'});
+   clearTimeout(timeout);
+   let result=null;
+   try{result=await response.json()}catch(e){}
+   if(shelfPending?.requestId!==requestId)return;
+   if(response.ok && result?.t==='shelfAck' && result.book){shelfSaved(result);return}
+   const reason=result?.reason||('HTTP_'+response.status);
+   const message=result?.message||(`서버 오류 (HTTP ${response.status})`);
+   const advice=response.status===404||response.status===405?' 이 서버에는 새 공개 기능이 없습니다. GitHub 저장소의 server.js와 public 폴더를 모두 업데이트하고 Render의 /health에서 14.19.0을 확인하세요.':response.status===413?' 글자 수는 10,000자까지 가능하지만 전송 데이터가 너무 큽니다.':response.status>=500?' 서버 로그에서 저장 디스크 오류가 있는지 확인해 주세요.':'';
+   shelfFailed(`${message} [원인: ${reason} · HTTP ${response.status}]${advice}`,requestId);return;
+  }catch(e){
+   clearTimeout(timeout);
+   if(shelfPending?.requestId!==requestId)return;
+   if(attempt===0){shelfFeedback('서버 응답을 확인하지 못해 동일한 요청으로 한 번 더 확인하고 있어요. 중복 공개는 되지 않습니다.','loading');continue}
+   shelfFailed(`책 공개 요청의 응답을 받지 못했습니다. ${e?.name==='AbortError'?'15초 동안 서버 응답이 없습니다.':'네트워크 연결 또는 요청이 차단됐습니다.'} /health에서 서버 버전 14.19.0을 확인한 뒤 재입장해 보세요. 작성한 초안은 그대로 남아 있습니다. [원인: ${e?.name||'NETWORK_ERROR'}]`,requestId);
+   return;
+  }
+ }
 }
 
 // V14.15: edit and delete only the selected book (not another personal draft).
@@ -1009,6 +1052,7 @@ function renderLibraryGallery(){
   }
   if(drafts.some(d=>d.id===previous))select.value=previous;
   else if(drafts.some(d=>d.id===state.activeDraftId))select.value=state.activeDraftId;
+  updatePublishCount();
  }
  const books=displayLibraryBooks();
  const q=libraryState.search.trim().toLocaleLowerCase('ko-KR');
@@ -1137,6 +1181,7 @@ function publishChosenDraft(id){
  const current=drafts.find(d=>d.id===id)||selected;
  publishToShelf({title:current.title,text:current.story,sourceDraftId:current.id});
 }
+$('#libraryPublishSelect').addEventListener('change',updatePublishCount);
 $('#librarySave').onclick=()=>{
  const choice=$('#libraryPublishSelect')?.value||state.activeDraftId;
  publishChosenDraft(choice);
