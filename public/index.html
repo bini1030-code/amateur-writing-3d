@@ -15,7 +15,7 @@
       <div class="controls"><div class="control-title">HOW TO MOVE</div><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 <span class="dotsep">·</span> 마우스 드래그 둘러보기 <span class="dotsep">·</span> <kbd>V</kbd> 1인칭/3인칭</div><div><kbd>E</kbd> 공간별 상호작용 <span class="dotsep">·</span> <kbd>F</kbd> 모임방 의자에 앉기 <span class="dotsep">·</span> <kbd>Enter</kbd> 채팅</div></div>
       <div class="worldactions"><button id="camToggle" title="1인칭 또는 3인칭 전환">◉ <span>시점</span></button><button id="soundToggle" title="배경음악과 효과음 켜기/끄기">♫ <span>소리 켬</span></button></div>
     </div>
-    <div class="navigation"><button data-travel="main"><span>✎</span> 모임방</button><button data-travel="tea"><span>☕</span> 다과룸</button><button data-travel="mind"><span>✧</span> 여섯 얼굴의 방</button></div>
+    <div class="navigation"><button data-travel="main"><span>✎</span> 모임방</button><button data-travel="tea"><span>☕</span> 다과룸</button><button data-travel="mind"><span>✧</span> 여섯 얼굴의 방</button><button type="button" id="guestbookNav"><span>📌</span> 방명록 보드</button></div>
     <div class="mobileMove" id="joystick" aria-label="이동 조이스틱"><div class="joystick-hint">MOVE</div><div id="stick"></div></div>
         <div class="effectToast" id="toast" role="status"></div>
     <div id="snackMenu" class="snackOverlay hidden" role="dialog" aria-label="다과 고르기" aria-modal="true" aria-hidden="true">
@@ -83,6 +83,17 @@
             <div class="libraryBody libraryContinuousText" id="libraryBody" tabindex="0" aria-label="책 본문 전체"></div>
             <div class="libraryReadingEnd" aria-hidden="true"><span>✦</span> 이 글의 끝 <span>✦</span></div>
           </article>
+          <section id="bookComments" class="communityComments" aria-label="공개 책 댓글" hidden>
+            <h4>💬 이 책에 남긴 이야기 <span id="bookCommentCount">0</span></h4>
+            <p class="communityHelper">같은 모임방의 참가자 모두가 댓글을 볼 수 있어요. 닉네임이 함께 표시됩니다.</p>
+            <div id="bookCommentList" class="communityCommentList" aria-live="polite"></div>
+            <form id="bookCommentForm" class="communityCommentForm">
+              <label for="bookCommentText">댓글 남기기 · 최대 400자</label>
+              <textarea id="bookCommentText" rows="2" maxlength="450" placeholder="이 글을 읽고 떠오른 생각을 남겨 보세요."></textarea>
+              <div class="communityFormBottom"><span id="bookCommentCountInput">0 / 400자</span><button type="submit">댓글 저장하기</button></div>
+            </form>
+            <p id="bookCommentFeedback" class="communityFeedback" role="status" aria-live="polite"></p>
+          </section>
           <div class="libraryOwnerActions" id="libraryOwnerActions" hidden><span id="libraryOwnerTitle">✍️ 내가 꽂은 책</span><button type="button" id="libraryEdit">✏️ 책 수정</button><button type="button" id="libraryDelete" class="libraryDangerButton">🗑️ 책 삭제</button><p id="libraryOwnerHelp" class="libraryOwnerHelp" role="status" aria-live="polite"></p></div>
           <div id="libraryEditor" class="libraryEditor" hidden>
             <label for="libraryEditTitle">책 제목 <small>최대 80자</small></label>
@@ -96,6 +107,26 @@
           <button id="libraryRestore" type="button" hidden>📚 이 글 바로 공개하기</button>
           <div id="libraryNote" class="libraryHint">같은 모임방 참가자는 두 책장에서 같은 글을 읽을 수 있어요.</div>
         </section>
+      </div>
+    </section>
+
+    <!-- Real 3D cork board at the writing-room wall. Posts/replies are room-shared. -->
+    <section id="guestbookModal" class="guestOverlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="guestbookHeading">
+      <div class="guestCard">
+        <header class="guestHeader">
+          <div><span class="guestEyebrow">THE WRITING ROOM · 방명록 보드</span>
+            <h2 id="guestbookHeading">📌 우리들의 방명록</h2>
+            <p>방에 들른 마음을 짧게 남겨 주세요. 다른 참가자도 읽고 댓글을 달 수 있어요.</p></div>
+          <button id="guestbookClose" type="button" aria-label="방명록 닫기">✕</button>
+        </header>
+        <form id="guestbookForm" class="guestCompose">
+          <label for="guestbookText">새 방명록 글 · 최대 500자</label>
+          <textarea id="guestbookText" rows="3" maxlength="550" placeholder="오늘 이곳에 머문 한마디를 적어 주세요."></textarea>
+          <div class="communityFormBottom"><span id="guestbookCount">0 / 500자</span><button type="submit">📌 방명록에 남기기</button></div>
+        </form>
+        <p id="guestbookFeedback" class="communityFeedback" role="status" aria-live="polite">방명록은 같은 모임방 전체에 공개됩니다.</p>
+        <div class="guestListHead"><strong>모두의 메시지</strong><span id="guestbookTotal">0개의 기록</span></div>
+        <div id="guestbookList" class="guestList" aria-live="polite"></div>
       </div>
     </section>
 

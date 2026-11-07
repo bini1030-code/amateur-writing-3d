@@ -699,3 +699,49 @@
 .petChoices button span{font-size:28px}.petChoices button strong{font-size:14px}.petChoices button small{font-size:10px;color:#816d5c;text-align:center}
 .petCard .petFoot{font-size:11px;margin:14px 0 0;color:#806b58}
 @media(max-width:700px){.petNameplateTitle{font-size:11px;padding:4px 8px}.petQuickActions button{width:39px;height:39px;font-size:20px}.petQuickActions{gap:3px;padding:4px}.petCard{padding:16px}.petChoices button{min-height:98px}}
+
+/* V14.27: readable corkboard guestbook and per-book / guestbook discussion. */
+.guestOverlay{position:absolute;inset:0;z-index:19;background:#19131bbd;backdrop-filter:blur(5px);padding:18px;display:flex;align-items:center;justify-content:center}
+.guestOverlay.hidden{display:none!important}
+.guestCard{width:min(750px,100%);max-height:min(90dvh,870px);overflow-y:auto;background:#f7efe1;color:#382b2b;border:1px solid #d0a781;box-shadow:0 24px 80px #09050b99;border-radius:19px;padding:21px;scrollbar-color:#bca084 transparent}
+.guestHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;border-bottom:1px solid #d6bfa8;padding-bottom:12px}
+.guestEyebrow{font-size:10px;letter-spacing:1.4px;color:#8a5e46;font-weight:900}
+.guestHeader h2{font:600 25px/1.5 'Noto Serif KR',serif;margin:5px 0;color:#463026}
+.guestHeader p{font-size:12px;line-height:1.7;color:#684e3f;margin:0}
+.guestHeader button{border:1px solid #c5a38e;background:#fff7ee;color:#694e41;border-radius:12px;width:40px;height:40px;flex:none}
+.guestCompose{border:1px solid #d9c0a8;border-radius:13px;background:#fffaf2;padding:14px;margin-top:14px}
+.guestCompose label,.communityCommentForm label{display:block;font-weight:850;color:#514035;font-size:12px;margin-bottom:7px}
+.guestCompose textarea,.communityCommentForm textarea{width:100%;display:block;border:1.5px solid #b99d82;border-radius:9px;padding:11px 12px;color:#302624;background:#fff;font-size:14px;line-height:1.6;min-height:72px;resize:vertical}
+.communityFormBottom{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px}
+.communityFormBottom span{color:#665045;font-size:12px;font-weight:650}
+.communityFormBottom button{border:1px solid #6b4a3b;border-radius:9px;padding:11px 15px;background:#745241;color:#fffaf0;font-weight:800;font-size:12px}
+.communityFormBottom button:hover{background:#593b30}
+.communityFormBottom button:disabled{opacity:.6}
+.communityFeedback{border-radius:8px;color:#634a3d;font-size:12px;line-height:1.7;padding:10px 12px;background:#eee0cc;margin:12px 0}
+.communityFeedback[data-kind="error"]{background:#fff0ef;color:#8a2628;border:1px solid #d99091}
+.communityFeedback[data-kind="success"]{background:#eaf4e9;color:#27592e;border:1px solid #99c19c}
+.communityFeedback[data-kind="loading"]{background:#f5ead3;color:#74531f;border:1px solid #dbc396}
+.guestListHead{display:flex;justify-content:space-between;gap:9px;align-items:center;margin:16px 0 10px;color:#4d352d}
+.guestListHead strong{font-size:16px}.guestListHead span{font-size:11px;color:#806b5e}
+.guestList{display:flex;flex-direction:column;gap:12px;padding-bottom:9px}
+.guestPost{border:1px solid #ddc5aa;border-radius:13px;background:#fffaf4;padding:14px;box-shadow:0 3px 12px #6c43230d}
+.guestPostHead,.communityCommentHead{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:#7b6054}
+.guestPostHead strong,.communityCommentHead strong{color:#4a342d;font-size:13px}
+.guestPostText,.communityCommentText{color:#3e302c;font-size:14px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;margin:9px 0 10px}
+.communityReplyArea{border-top:1px solid #e6d8c9;padding-top:10px}
+.communityReplyToggle{border:1px solid #cab39d;background:#f3e6d6;color:#634532;border-radius:8px;font-size:12px;padding:7px 11px;font-weight:800}
+.communityReplyArea[open]>.communityReplyToggle{margin-bottom:8px}
+.communityCommentList{display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.communityComment{background:#f0e7de;border-left:3px solid #b3957b;border-radius:7px;padding:9px 11px}
+.communityCommentText{font-size:12px;line-height:1.7;margin:6px 0 0}
+.communityEmpty{background:#f6eee2;border:1px dashed #d0b9a4;color:#765e4e;border-radius:10px;padding:16px;text-align:center;font-size:12px;line-height:1.8}
+.communityCommentForm{padding:10px;border:1px solid #e0cbb8;border-radius:11px;background:#fffaf3;margin-top:8px}
+.communityCommentForm textarea{font-size:13px;min-height:65px}
+.communityComments{margin:15px 0 12px;border:1px solid #dcc9b7;background:#fffaf5;padding:15px;border-radius:13px;color:#382b2b}
+.communityComments[hidden]{display:none!important}
+.communityComments h4{font:700 18px/1.5 'Noto Serif KR',serif;margin:0;color:#48382c}
+.communityComments h4 span{font-family:inherit;font-size:13px;color:#856755}
+.communityHelper{font-size:11px;color:#755e50;line-height:1.7;margin:4px 0 11px}
+@media(max-width:700px){.guestOverlay{padding:8px}.guestCard{padding:14px;max-height:calc(100dvh - 14px);border-radius:12px}.guestHeader h2{font-size:21px}.guestHeader p{font-size:11px}.guestCompose{padding:10px}.communityComments{padding:11px}.guestPost{padding:11px}.guestPostText{font-size:13px}}
+
+.guestReplyFeedback[hidden]{display:none!important}.guestReplyFeedback{margin:9px 0 0;padding:7px 9px}

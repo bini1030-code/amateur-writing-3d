@@ -93,6 +93,17 @@ function plant(x,z,size=1){C(x,.31*size,z,.38*size,.62*size,'#936c4e');C(x,.62*s
 plant(-7.65,.25,1.2);plant(7.55,1.65,1.08);plant(-7.5,10.5,.75);
 // TV panel on center back wall (screen glows with decorative text shapes)
 B(0,2.25,-.80,4.25,2.42,.12,'#2b2b35');B(0,2.25,-.725,4.00,2.17,.08,'#344950');B(-.5,2.5,-.674,2.3,.11,.03,'#d3b99a');B(-.6,2.24,-.674,1.8,.065,.03,'#a4beb4');B(-.55,1.94,-.674,1.9,.05,.03,'#d3b99a');S(1.25,2.34,-.63,.44,'#e2c59b',11,8);
+// V14.27: cork guestbook board fixed to the writing-room left wall.
+// The board is a real 3D object (not a floating browser dialog).
+B(-8.74,2.20,6.54,.25,2.05,2.78,'#70503b'); // wooden perimeter
+B(-8.58,2.20,6.54,.06,1.77,2.47,'#bf9770'); // cork backing
+B(-8.52,3.02,6.54,.065,.085,2.41,'#ead1a7');
+for(const [z,y,c] of [[5.62,2.50,'#faf1d2'],[6.43,2.44,'#eac8b8'],[7.25,2.53,'#e2e2c9'],[5.88,1.73,'#d6e2da'],[6.76,1.73,'#fff1c2']]){
+ B(-8.48,y,z,.045,.67,.57,c);
+ S(-8.446,y+.28,z,.047,'#9f775c',7,5);
+ for(let i=0;i<3;i++)B(-8.448,y+.11-i*.105,z,.009,.015,.32,'#b2a293');
+}
+B(-8.50,1.24,6.54,.14,.08,2.2,'#83634d'); // narrow bottom ledge
 // Warm standing lamp
 B(6.95,.05,10.15,.62,.09,.62,'#716151');C(6.95,1.75,10.15,.035,3.4,'#624d3e');cone(6.95,3.2,10.15,.48,.85,'#fff1c7'); // bulb drawn separately so it can switch off
 // Pendant lamps over meeting table - no ceiling slab over view

@@ -298,7 +298,7 @@ function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($(
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':syncPets(p.pets||[],true);state.shelfStorage=p.shelfStorage||'unknown';state.shelfLoadError=p.shelfLoadError||'';state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.shelfSaveSupported=!!p.features?.includes('shelf-save-ack-v2');state.shelfHttpPublishSupported=!!p.features?.includes('shelf-http-publish-v1');state.serverVersion=p.serverVersion||'';state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});
+  case 'welcome':syncPets(p.pets||[],true);state.shelfStorage=p.shelfStorage||'unknown';state.shelfLoadError=p.shelfLoadError||'';state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.shelfSaveSupported=!!p.features?.includes('shelf-save-ack-v2');state.shelfHttpPublishSupported=!!p.features?.includes('shelf-http-publish-v1');state.serverVersion=p.serverVersion||'';state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[],p.editableBookKeyIndices||{});syncCommunity(p);
    storageStatusNotice();
    if(state.shelfLoadError)shelfFeedback('서버 책장 목록을 불러오지 못했습니다. '+state.shelfLoadError,'error');
    if(!state.shelfManageSupported)shelfFeedback('현재 서버에 수정·삭제 기능이 없습니다. GitHub에서 server.js와 public 폴더를 함께 업로드하고 Render 배포 후 /health 버전을 확인해 주세요.','warning');
@@ -315,6 +315,10 @@ function message(p){
     else if(p.action==='water'){const plant=wateringPlants.find(v=>v.id===p.plant);if(plant){lightPulse(plant.x,plant.z,'#b5edbd',145,'water');playSound('tea');toast((p.name||'누군가')+' 님이 식물에 물을 주었어요.');}}
     break;
   }
+  case 'guestbookAdded': communityReceiveGuest(p.entry);break;
+  case 'commentAdded': communityReceiveComment(p);break;
+  case 'communityAck': communityAck(p);break;
+  case 'communityError': communityError(p);break;
   case 'shelfBook': receiveLibraryBook(p.book);break;
   case 'shelfAck': shelfSaved(p);break;
   case 'shelfUpdateAck': shelfActionUpdated(p);break;
@@ -690,9 +694,10 @@ const wateringPlants=[
 ];
 const standLamp={x:6.95,z:10.15,room:'main'};
 // The real book spines are on the left wall of the main writing room.
+const guestbookBoard={x:-8.68,z:6.54};
 const bookshelves=[{id:'main-library',x:-7.85,z:2.40,w:.62,h:2.27,room:'main'},{id:'mind-library',x:8.24,z:-3.14,w:.62,h:2.27,room:'mind'}];
 const WATERING_CAN_ICON=`<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 20h25l-3 17H13L9 20Z" fill="#9bc0b1" stroke="#f2fff6" stroke-width="2.2" stroke-linejoin="round"/><path d="M34 22c8-1 9 8 2 10h-4" stroke="#e6f6ec" stroke-width="3" stroke-linecap="round"/><path d="M12 20 7 10 2 11" stroke="#d7ede0" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><path d="m9 19 9-9" stroke="#d7ede0" stroke-width="3" stroke-linecap="round"/><path d="M6 6v2m5-4 1 2m-1 4 3 1" stroke="#b5dce8" stroke-width="2.3" stroke-linecap="round"/></svg>`;
-const ICON_LIBRARY={snacks:'🍵',water:WATERING_CAN_ICON,bookshelf:'📚',lamp:'💡',chair:'🪑',stand:'🚶',mind:'💭',face:'🪞',lounge:'🛋️', 'mind-chair':'🪑'};
+const ICON_LIBRARY={guestbook:'📌',snacks:'🍵',water:WATERING_CAN_ICON,bookshelf:'📚',lamp:'💡',chair:'🪑',stand:'🚶',mind:'💭',face:'🪞',lounge:'🛋️', 'mind-chair':'🪑'};
 
 function closestWateringPlant(){let best=null,distance=Infinity;for(const plant of wateringPlants){if(plant.room!==state.room)continue;const d=Math.hypot(actor.x-plant.x,actor.z-plant.z);if(d<1.28&&d<distance){best=plant;distance=d}}return best?{...best,distance}:null}
 function offsetByRot(x,z,rot,forward=0,side=0){return {x:x+Math.sin(rot)*forward+Math.cos(rot)*side,z:z+Math.cos(rot)*forward-Math.sin(rot)*side}}
@@ -747,6 +752,8 @@ function nearbyInteraction(){
   const lampDistance=Math.hypot(actor.x-standLamp.x,actor.z-standLamp.z);
   // Closest furniture wins where a plant overlaps a lamp or a chair.
   const candidates=[];
+  const boardDistance=nearestRectDistance(actor.x,actor.z,guestbookBoard.x,guestbookBoard.z,.34,2.65);
+  if(boardDistance<1.19)candidates.push({score:boardDistance-.68,action:{type:'guestbook',label:'방명록 보드',detail:'방명록을 남기고 다른 사람의 글과 댓글을 읽어요.'}});
   if(dist<1.21)candidates.push({score:dist-.50,action:{type:'chair',label:'의자에 앉기',detail:'상호작용을 누르면 자리에 앉습니다.'}});
   if(plant)candidates.push({score:plant.distance-.47,action:{type:'water',plant,label:'식물에 물주기',detail:'물뿌리개로 식물에 물을 주는 행동이에요.'}});
   if(lampDistance<1.27)candidates.push({score:lampDistance-.25,action:{type:'lamp',label:state.lampOn?'스탠드 조명 끄기':'스탠드 조명 켜기',detail:'상호작용으로 방의 조명 밝기를 바꿉니다.'}});
@@ -1289,6 +1296,7 @@ function renderLibraryReader(){
  $('#libraryReadPaper').hidden=libraryState.editing;
  $('#libraryEditor').hidden=!libraryState.editing;
  $('#libraryReadToolbarActions').hidden=libraryState.editing;
+ renderBookComments();
  $('#libraryNote').textContent=needsRecovery?'공개 이력 확인 필요: 이 글을 이전에 공개했지만 현재 서버에서 찾지 못했습니다. 영구 저장소 연결 후 다시 공개할 수 있습니다.':isPrivate?'비공개: 이 글은 이 기기에만 있습니다. 「이 글 바로 공개하기」를 누르면 확인 절차 없이 즉시 모두에게 공개됩니다.':'공개: 같은 모임방 참가자는 두 책장 어디에서나 이 책을 읽을 수 있어요.';
 }
 function refreshLibraryBook(){
@@ -1362,7 +1370,143 @@ function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요'
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
  lightPulse(actor.x,actor.z,zone==='tea'?'#ffe0aa':zone==='mind'?'#d1b4fa':'#ffd6ae',160);
 }
-function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='mind'){hideMindModal();hideFaceInfo()}if(zone!=='main'&&zone!=='mind')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','여덟 자리에 둥글게 앉아 서로의 마음을 나누는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
+// V14.27: one room-shared community record for corkboard notes and replies.
+// Nothing is written to localStorage; server acknowledgements mean persistent save succeeded.
+const communityState={posts:[],comments:{},enabled:false,room:''};
+const communityPending=new Map();
+const GUEST_MAX=500,REPLY_MAX=400;
+function communityDate(ts){return new Date(Number(ts)||Date.now()).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function feedbackCommunity(target,text,kind='info'){
+ const el=$(target);if(!el)return;el.textContent=text;el.dataset.kind=kind;
+}
+function syncCommunity(data){
+ communityState.room=data.code;
+ communityState.posts=Array.isArray(data.guestbook)?data.guestbook.filter(v=>v&&typeof v.id==='string'):[];
+ communityState.comments=data.comments&&typeof data.comments==='object'&&!Array.isArray(data.comments)?data.comments:{};
+ communityState.enabled=!!data.features?.includes('guestbook-comments-v1')&&!data.shelfLoadError;
+ const form=$('#guestbookForm'),commentForm=$('#bookCommentForm');
+ if(form)form.querySelector('button[type=submit]').disabled=!communityState.enabled;
+ if(commentForm)commentForm.querySelector('button[type=submit]').disabled=!communityState.enabled;
+ if(!communityState.enabled){
+  const message=data.shelfLoadError?'데이터베이스 연결 문제: '+data.shelfLoadError:'서버에 방명록 기능이 아직 설치되지 않았습니다. server.js와 public 폴더를 함께 올린 뒤 /health에서 14.27.0을 확인해 주세요.';
+  feedbackCommunity('#guestbookFeedback',message,'error');
+  feedbackCommunity('#bookCommentFeedback',message,'error');
+ }else feedbackCommunity('#guestbookFeedback','방명록 글과 댓글은 같은 모임방 전체에 공개되어 영구 책장에 저장됩니다.','info');
+ renderGuestbook();renderBookComments();
+}
+function escapeCommunity(s){return escapeHtml(s)}
+function commentListMarkup(items){
+ if(!items?.length)return '<p class="communityEmpty">아직 댓글이 없어요. 첫 댓글을 남겨 보세요.</p>';
+ return items.map(c=>`<div class="communityComment"><div class="communityCommentHead"><strong>${escapeCommunity(c.author)}</strong><time>${escapeCommunity(communityDate(c.at))}</time></div><p class="communityCommentText">${escapeCommunity(c.text)}</p></div>`).join('');
+}
+function renderGuestbook(){
+ const holder=$('#guestbookList');if(!holder)return;
+ const former=new Map();
+ holder.querySelectorAll('details.communityReplyArea').forEach(d=>{
+  former.set(d.dataset.targetId,{open:d.open,text:d.querySelector('textarea')?.value||''});
+ });
+ $('#guestbookTotal').textContent=communityState.posts.length+'개의 기록';
+ if(!communityState.posts.length){holder.innerHTML='<p class="communityEmpty">아직 남겨진 인사가 없어요. 첫 방명록을 작성해 보세요.</p>';return}
+ holder.innerHTML=[...communityState.posts].reverse().map(post=>{
+  const replies=communityState.comments['guest:'+post.id]||[];
+  return `<article class="guestPost"><div class="guestPostHead"><strong>✍ ${escapeCommunity(post.author)}</strong><time>${escapeCommunity(communityDate(post.at))}</time></div>
+   <p class="guestPostText">${escapeCommunity(post.text)}</p>
+   <details class="communityReplyArea" data-target-id="${escapeCommunity(post.id)}"><summary class="communityReplyToggle">💬 댓글 ${replies.length}개 · 보기/쓰기</summary>
+   <div class="communityCommentList">${commentListMarkup(replies)}</div>
+   <form class="communityCommentForm guestReplyForm" data-target-id="${escapeCommunity(post.id)}"><label>이 방명록 글에 댓글 남기기</label>
+   <textarea rows="2" maxlength="450" placeholder="따뜻한 답글을 적어 보세요. (최대 400자)"></textarea>
+   <div class="communityFormBottom"><span>최대 400자</span><button type="submit" ${communityState.enabled?'':'disabled'}>댓글 저장</button></div></form><p class="guestReplyFeedback communityFeedback" role="status" aria-live="polite" hidden></p></details></article>`
+ }).join('');
+ holder.querySelectorAll('details.communityReplyArea').forEach(d=>{
+  const prev=former.get(d.dataset.targetId);if(prev){d.open=prev.open;const text=d.querySelector('textarea');if(text)text.value=prev.text;}
+ });
+}
+function renderBookComments(){
+ const section=$('#bookComments');if(!section)return;
+ const book=typeof libraryState!=='undefined'&&libraryState.view==='reader'?displayBook(libraryState.id):null;
+ const published=!!book&&libraryState.publishedIds.has(book.id)&&!libraryState.editing;
+ section.hidden=!published;
+ if(!published)return;
+ const comments=communityState.comments['book:'+book.id]||[];
+ $('#bookCommentCount').textContent=comments.length+'개';
+ $('#bookCommentList').innerHTML=commentListMarkup(comments);
+ $('#bookCommentForm').querySelector('button').disabled=!communityState.enabled;
+}
+function openGuestbook(){
+ if(!state.connected){toast('모임방에 접속한 뒤 방명록을 이용해 주세요.');return}
+ closeMobilePanel();hideSnackMenu();hidePetMenu();closeLibrary();hideMindModal();
+ renderGuestbook();$('#guestbookModal').classList.remove('hidden');$('#guestbookModal').setAttribute('aria-hidden','false');
+ playSound('click');
+}
+function closeGuestbook(){const m=$('#guestbookModal');if(m){m.classList.add('hidden');m.setAttribute('aria-hidden','true')}}
+function submitCommunity(action,targetType,targetId,body,form){
+ const feedbackTarget=action==='guestbook'?'#guestbookFeedback':targetType==='book'?'#bookCommentFeedback':'#guestbookFeedback';
+ const replyStatus=targetType==='guest'?$('#guestbookList details[data-target-id="'+targetId+'"] .guestReplyFeedback'):null;
+ const replyFeedback=(text,kind)=>{if(replyStatus){replyStatus.hidden=false;replyStatus.textContent=text;replyStatus.dataset.kind=kind}};
+ if(!communityState.enabled){feedbackCommunity(feedbackTarget,'서버의 방명록 저장 기능에 연결되지 않았습니다. /health에서 버전과 Supabase 상태를 확인해 주세요.','error');replyFeedback('서버 연결을 확인해 주세요.','error');return false}
+ if(!state.connected||socket?.readyState!==WebSocket.OPEN){feedbackCommunity(feedbackTarget,'서버 연결이 끊어졌습니다. 다시 접속해 주세요.','error');replyFeedback('서버 연결이 끊어졌습니다.','error');return false}
+ const text=body.trim(),max=action==='guestbook'?GUEST_MAX:REPLY_MAX,count=charCount(text);
+ if(!count){feedbackCommunity(feedbackTarget,'내용을 입력해 주세요.','error');replyFeedback('댓글 내용을 입력해 주세요.','error');return false}
+ if(count>max){const msg=`최대 ${max}자까지 저장됩니다. 현재 ${count}자이므로 ${count-max}자를 줄여 주세요.`;feedbackCommunity(feedbackTarget,msg,'error');replyFeedback(msg,'error');return false}
+ if(communityPending.size){feedbackCommunity(feedbackTarget,'이미 저장 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.','loading');replyFeedback('이미 다른 글을 저장 중입니다.','loading');return false}
+ const requestId='c-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+ const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
+ const timeout=setTimeout(()=>communityError({action,requestId,reason:'TIMEOUT',message:'서버 응답이 18초 동안 없습니다. 재접속해 해당 글이 저장되었는지 확인해 주세요.'}),18000);
+ communityPending.set(requestId,{action,targetType,targetId,text,form,button,timeout,feedbackTarget});
+ feedbackCommunity(feedbackTarget,'서버에 저장하고 있습니다…','loading');replyFeedback('댓글 저장 중…','loading');
+ send(action==='guestbook'?{t:'guestbookAdd',requestId,text}:{t:'commentAdd',requestId,targetType,targetId,text});
+ return true;
+}
+function communityFinish(msg,error){
+ const pending=communityPending.get(msg.requestId);
+ if(!pending)return;
+ communityPending.delete(msg.requestId);clearTimeout(pending.timeout);
+ if(pending.button)pending.button.disabled=!communityState.enabled;
+ if(!error){
+  const currentForm=pending.targetType==='guest'?
+     [...document.querySelectorAll('.guestReplyForm')].find(f=>f.dataset.targetId===pending.targetId):pending.form;
+  const textarea=currentForm?.querySelector('textarea');
+  if(textarea&&textarea.value.trim()===pending.text)textarea.value='';
+  if(pending.action==='guestbook')$('#guestbookCount').textContent='0 / 500자';
+  if(pending.targetType==='book')$('#bookCommentCountInput').textContent='0 / 400자';
+  feedbackCommunity(pending.feedbackTarget,'저장됐습니다. 같은 모임방 참가자들에게도 공개됐어요.','success');
+  if(pending.targetType==='guest'){const note=[...document.querySelectorAll('.guestReplyArea')].find(x=>x.dataset.targetId===pending.targetId)?.querySelector('.guestReplyFeedback');if(note){note.hidden=false;note.textContent='댓글을 저장했습니다.';note.dataset.kind='success'}}
+ }else{
+  feedbackCommunity(pending.feedbackTarget,msg.message||'저장에 실패했습니다. 입력한 글은 남아 있습니다.','error');
+  if(pending.targetType==='guest'){const note=[...document.querySelectorAll('.guestReplyArea')].find(x=>x.dataset.targetId===pending.targetId)?.querySelector('.guestReplyFeedback');if(note){note.hidden=false;note.textContent=msg.message||'댓글 저장에 실패했습니다.';note.dataset.kind='error'}}
+ }
+}
+function communityAck(msg){communityFinish(msg,false)}
+function communityError(msg){communityFinish(msg,true)}
+function communityReceiveGuest(entry){
+ if(!entry||typeof entry.id!=='string'||communityState.posts.some(v=>v.id===entry.id))return;
+ communityState.posts.push(entry);renderGuestbook();
+}
+function communityReceiveComment(msg){
+ const {targetType,targetId,entry}=msg||{};
+ if(!['book','guest'].includes(targetType)||!entry?.id)return;
+ const key=targetType+':'+targetId,list=communityState.comments[key]||[];
+ if(list.some(c=>c.id===entry.id))return;
+ communityState.comments[key]=[...list,entry];
+ if(targetType==='book')renderBookComments();else renderGuestbook();
+}
+$('#guestbookNav').onclick=openGuestbook;
+$('#guestbookClose').onclick=closeGuestbook;
+$('#guestbookModal').addEventListener('click',e=>{if(e.target.id==='guestbookModal')closeGuestbook()});
+$('#guestbookText').addEventListener('input',e=>{$('#guestbookCount').textContent=charCount(e.target.value)+' / 500자'});
+$('#guestbookForm').addEventListener('submit',e=>{e.preventDefault();submitCommunity('guestbook','','',$('#guestbookText').value,e.currentTarget)});
+$('#guestbookList').addEventListener('submit',e=>{
+ const f=e.target.closest('form.guestReplyForm');if(!f)return;e.preventDefault();
+ submitCommunity('comment','guest',f.dataset.targetId,f.querySelector('textarea').value,f);
+});
+$('#bookCommentText').addEventListener('input',e=>{$('#bookCommentCountInput').textContent=charCount(e.target.value)+' / 400자'});
+$('#bookCommentForm').addEventListener('submit',e=>{
+ e.preventDefault();const book=displayBook(libraryState.id);
+ if(!book||!libraryState.publishedIds.has(book.id)){feedbackCommunity('#bookCommentFeedback','공개된 책만 댓글을 달 수 있습니다.','error');return}
+ submitCommunity('comment','book',book.id,$('#bookCommentText').value,e.currentTarget);
+});
+
+function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='main')closeGuestbook();if(zone!=='mind'){hideMindModal();hideFaceInfo()}if(zone!=='main'&&zone!=='mind')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','여덟 자리에 둥글게 앉아 서로의 마음을 나누는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){let best=null,dist=1e9;for(const p of chairSeats){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<1.21?best:null}
 function sit(){if(state.sitting||actor.action==='lie'){standUp();return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;state.restSpot={...p,type:'chair'};route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
@@ -1434,6 +1578,7 @@ function interact(){
  if(choice.type==='chair'){sit();return}
  if(choice.type==='snacks'){showSnackMenu();return}
  if(choice.type==='bookshelf'){openLibrary();return}
+ if(choice.type==='guestbook'){openGuestbook();return}
  if(choice.type==='lounge'){useMindLounge(choice.spot);return}
  if(choice.type==='mind'){showMindModal();lightPulse(actor.x,actor.z,'#cbb8ed',155);return}
  if(choice.type==='face'){showFaceInfo(choice.faceKey);return}
@@ -1443,7 +1588,7 @@ function interact(){
 
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#petMenu').classList.contains('hidden'))hidePetMenu();else if(!$('#libraryModal').classList.contains('hidden')){if(libraryState.editing)cancelLibraryEditor();else if(libraryState.view==='reader')returnToLibraryGallery();else closeLibrary()}else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#petMenu').classList.contains('hidden'))hidePetMenu();else if(!$('#guestbookModal').classList.contains('hidden'))closeGuestbook();else if(!$('#libraryModal').classList.contains('hidden')){if(libraryState.editing)cancelLibraryEditor();else if(libraryState.view==='reader')returnToLibraryGallery();else closeLibrary()}else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAmbient();else startAmbient()});
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}
