@@ -51,8 +51,8 @@
           <p id="libraryFeedback" class="libraryFeedback" role="status" aria-live="polite">책 표지를 선택해 읽거나, 작성한 글을 책장에 꽂아 보세요.</p>
         </section>
         <section id="libraryReaderView" class="libraryReaderView" aria-label="선택한 책 읽기" hidden>
-          <div class="libraryReaderToolbar"><button id="libraryBack" type="button">← 전체 책장으로</button><span>📖 모임원들의 글</span></div>
-          <article class="libraryPaper">
+          <div class="libraryReaderToolbar"><button id="libraryBack" type="button">← 전체 책장으로</button><span id="libraryReadToolbarActions">📖 모임원들의 글</span></div>
+          <article class="libraryPaper" id="libraryReadPaper">
             <div class="libraryPaperTop">✦ &nbsp; 아마추어 글쓰기 · 우리 모임의 이야기</div>
             <h3 id="libraryBookTitle">선택한 책 제목</h3><p id="libraryAuthor" class="libraryBookAuthor">글쓴이</p>
             <div class="libraryBody" id="libraryBody" tabindex="0"></div>
@@ -60,6 +60,16 @@
               <span id="libraryProgress" aria-live="polite">1 / 1쪽</span>
               <button type="button" id="libraryNext" aria-label="다음 페이지">다음 ›</button></div>
           </article>
+          <div class="libraryOwnerActions" id="libraryOwnerActions" hidden><span>✍️ 내가 꽂은 책</span><button type="button" id="libraryEdit">✏️ 책 수정</button><button type="button" id="libraryDelete" class="libraryDangerButton">🗑️ 책 삭제</button></div>
+          <div id="libraryEditor" class="libraryEditor" hidden>
+            <label for="libraryEditTitle">책 제목 <small>최대 80자</small></label>
+            <input id="libraryEditTitle" type="text" maxlength="140" placeholder="책 제목">
+            <label for="libraryEditText">책 본문 <small id="libraryEditCount">0 / 10,000자</small></label>
+            <textarea id="libraryEditText" rows="11" placeholder="수정할 글을 입력하세요."></textarea>
+            <p class="libraryEditHelp">이 수정은 책장에 공개된 책만 바꿉니다. 원래의 내 글 초안은 별도로 유지됩니다.</p>
+            <div class="libraryEditActions"><button type="button" id="libraryEditCancel">← 수정 취소</button><button type="button" id="libraryEditSave">✓ 수정한 책 저장</button></div>
+          </div>
+          <p id="libraryActionFeedback" class="libraryFeedback" role="status" aria-live="polite">책을 읽고 있습니다.</p>
           <button id="libraryRestore" type="button" hidden>↗ 이 기기에 남은 책을 다시 공유하기</button>
           <div id="libraryNote" class="libraryHint">같은 모임방 참가자는 두 책장에서 같은 글을 읽을 수 있어요.</div>
         </section>

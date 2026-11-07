@@ -143,19 +143,35 @@ function playFootstep(){
  src.connect(low);low.connect(gain);gain.connect(ctx.destination);src.start();src.stop(ctx.currentTime+length);
 }
 function send(o){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(o))}
+// A browser-local owner key is never shown on book covers or sent to other readers.
+// It protects new books even when another visitor chooses the same nickname.
+const bookshelfOwnerStorage=()=>`amateur-writing-book-owner-v1:${state.code}:${state.name}`;
+let bookshelfOwnerKey='';
+function ensureBookshelfOwnerKey(){
+ const k=bookshelfOwnerStorage();
+ try{
+  let v=localStorage.getItem(k);
+  if(!v){
+   if(!crypto?.randomUUID)throw new Error('Secure UUID unavailable');
+   v=crypto.randomUUID();localStorage.setItem(k,v);
+  }
+  bookshelfOwnerKey=v;
+ }catch(e){bookshelfOwnerKey='';}
+ return bookshelfOwnerKey;
+}
 function join(){const name=$('#nickname').value.trim()||'밤의 필자',code=($('#inviteCode').value||'NIGHT').trim().toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'').slice(0,18)||'NIGHT';
   if(!state.muted)ensureAudio(); // entry click unlocks ambient playback on mobile browsers
-  state.name=name;state.code=code;persist();$('#entryError').textContent='모임방에 연결하는 중입니다…';$('#enterBtn').disabled=true;
+  state.name=name;state.code=code;ensureBookshelfOwnerKey();persist();$('#entryError').textContent='모임방에 연결하는 중입니다…';$('#enterBtn').disabled=true;
   try{socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws')}catch(e){joinFail('서버 주소를 확인해 주세요.');return}
-  socket.onopen=()=>send({t:'join',name,code,color:state.color,gender:state.gender});
+  socket.onopen=()=>send({t:'join',name,code,color:state.color,gender:state.gender,ownerKey:bookshelfOwnerKey});
   socket.onmessage=ev=>{let p;try{p=JSON.parse(ev.data)}catch(e){return}message(p)};
   socket.onerror=()=>joinFail('연결에 문제가 있어요. 서버가 실행 중인지 확인해 주세요.');
-  socket.onclose=()=>{if(shelfPending)shelfFailed('연결이 끊겨 책장 저장을 확인하지 못했습니다. 재입장 후 책장을 확인해 주세요.',shelfPending.requestId);stopAmbient();if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
+  socket.onclose=()=>{if(shelfActionPending)shelfActionFailed({message:'연결이 끊어져 수정·삭제 여부를 확인하지 못했습니다. 재접속한 뒤 책장을 확인해 주세요.',requestId:shelfActionPending.requestId});if(shelfPending)shelfFailed('연결이 끊겨 책장 저장을 확인하지 못했습니다. 재입장 후 책장을 확인해 주세요.',shelfPending.requestId);stopAmbient();if(!state.connected)joinFail('방에 들어가지 못했어요. 다시 시도해 주세요.');else{state.connected=false;toast('서버 연결이 끊어졌어요. 새로고침해 다시 들어와 주세요.');$('#count').textContent='—';$('#micState').textContent='서버 연결이 종료되었습니다.'}}
 }
 function joinFail(t){$('#entryError').textContent=t;$('#enterBtn').disabled=false}
 function message(p){
  switch(p.t){
-  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[]);
+  case 'welcome':state.me=p.id;state.code=p.code;state.connected=true;state.shelfManageSupported=!!p.features?.includes('shelf-manage-v1');state.lampOn=p.lampOn!==false;startAmbient();actor.x=(p.people.find(x=>x.id===p.id)||{x:0}).x;actor.z=(p.people.find(x=>x.id===p.id)||{z:9.1}).z;peers.clear();for(const person of p.people)peers.set(person.id,{...person,rx:person.x,rz:person.z,rr:person.rot});$('#roomCode').textContent=p.code;$('#entrance').classList.add('hidden');$('#enterBtn').disabled=false;try{history.replaceState(null,'','?room='+encodeURIComponent(p.code))}catch(e){};renderPeople();updateZone();playSound('enter');toast('어서 와요, '+state.name+' 님. 오늘도 한 문장씩 써 보아요.');restoreChatRoom(p.code,p.history||[]);syncLibrary(p.code,p.books||[],p.deletedBookIds||[],p.editableBookIds||[]);
    if(!p.features?.includes('shelf-save-ack-v2'))shelfFeedback('서버가 v14.12 저장 기능을 확인해 주지 않았습니다. GitHub 루트의 server.js와 public 폴더를 함께 업로드해야 최신 저장 기능이 작동합니다.','warning');
    if(p.reading)showReading(p.reading);break;
   case 'join':peers.set(p.person.id,{...p.person,rx:p.person.x,rz:p.person.z,rr:p.person.rot});renderPeople();addSystem(p.person.name+' 님이 모임방에 왔어요.');playSound('click');if(state.mic)offer(p.person.id);break;
@@ -168,6 +184,10 @@ function message(p){
   }
   case 'shelfBook': receiveLibraryBook(p.book);break;
   case 'shelfAck': shelfSaved(p);break;
+  case 'shelfUpdateAck': shelfActionUpdated(p);break;
+  case 'shelfDeleteAck': shelfActionDeleted(p);break;
+  case 'shelfActionError': shelfActionFailed(p);break;
+  case 'shelfRemove': removeLibraryBook(p.id);break;
   case 'shelfError': shelfFailed(p.message,p.requestId);break;
   case 'chat':{receiveChat(p);bubble(p.id,p.text);break;}
   case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
@@ -641,13 +661,20 @@ function updateProximityHint(){
 
 // V14.9: reliable shared bookshelf. Server acknowledgement is authoritative;
 // draft text is always kept locally and is never published automatically.
-const libraryState={open:false,id:null,page:0,view:'shelf',search:'',books:[],publishedIds:new Set(),room:''};
+const libraryState={open:false,id:null,page:0,view:'shelf',search:'',books:[],publishedIds:new Set(),editableIds:new Set(),deletedIds:new Set(),room:'',editing:false};
 const BOOKSHELF_LIMIT=100;
-let shelfPending=null,shelfTimer=null;
+let shelfPending=null,shelfTimer=null,shelfActionPending=null,shelfActionTimer=null;
 const libraryCacheKey=code=>'amateur-writing-shelf-v1-'+code;
+const ownedBooksKey=()=>`amateur-writing-owned-books-v1:${state.code}:${state.name}`;
+function getLocallyOwnedIds(){try{return JSON.parse(localStorage.getItem(ownedBooksKey())||'[]')}catch(e){return []}}
+function saveLocallyOwnedIds(){try{localStorage.setItem(ownedBooksKey(),JSON.stringify([...libraryState.editableIds].slice(-BOOKSHELF_LIMIT)))}catch(e){}}
+function legacyOwnDraft(book){return !book.ownerProtected&&book.author===state.name&&!!book.sourceDraftId&&drafts.some(d=>d.id===book.sourceDraftId)}
+function canEditBook(book){return state.shelfManageSupported!==false&&!!book&&libraryState.publishedIds.has(book.id)&&book.author===state.name&&(!!bookshelfOwnerKey||legacyOwnDraft(book))&&(libraryState.editableIds.has(book.id)||legacyOwnDraft(book))}
+function freshRequestId(){return 'manage-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12)}
+
 function sanitizeShelfBook(b){
  if(!b||typeof b.id!=='string'||typeof b.title!=='string'||typeof b.text!=='string'||typeof b.author!=='string')return null;
- return {id:b.id.slice(0,64),title:b.title.slice(0,80),text:b.text,author:b.author.slice(0,18),createdAt:Number(b.createdAt)||0,sourceDraftId:typeof b.sourceDraftId==='string'?b.sourceDraftId.slice(0,80):'',updatedAt:Number(b.updatedAt)||0};
+ return {id:b.id.slice(0,64),title:b.title.slice(0,80),text:b.text,author:b.author.slice(0,18),createdAt:Number(b.createdAt)||0,sourceDraftId:typeof b.sourceDraftId==='string'?b.sourceDraftId.slice(0,80):'',updatedAt:Number(b.updatedAt)||0,ownerProtected:b.ownerProtected===true};
 }
 function cacheLibrary(){
  try{localStorage.setItem(libraryCacheKey(state.code),JSON.stringify(libraryState.books.slice(-BOOKSHELF_LIMIT)))}catch(e){}
@@ -668,22 +695,24 @@ function shelfBusy(busy){
  $$('[data-action="shelf"]').forEach(el=>{el.disabled=busy;});
 }
 function clearShelfPending(){if(shelfTimer){clearTimeout(shelfTimer);shelfTimer=null;}shelfPending=null;shelfBusy(false)}
-function syncLibrary(code,serverBooks){
+function syncLibrary(code,serverBooks,serverDeleted=[],serverEditable=[]){
  libraryState.room=code;
+ libraryState.deletedIds=new Set(Array.isArray(serverDeleted)?serverDeleted:[]);
+ libraryState.editableIds=new Set([...(Array.isArray(serverEditable)?serverEditable:[]),...getLocallyOwnedIds()]);
  let local=[];try{local=JSON.parse(localStorage.getItem(libraryCacheKey(code))||'[]')}catch(e){}
  if(!Array.isArray(local))local=[];
- const live=(Array.isArray(serverBooks)?serverBooks:[]).map(sanitizeShelfBook).filter(Boolean);
+ const live=(Array.isArray(serverBooks)?serverBooks:[]).map(sanitizeShelfBook).filter(b=>b&&!libraryState.deletedIds.has(b.id));
  libraryState.publishedIds=new Set(live.map(b=>b.id));
  const publishedSources=new Set(live.map(b=>b.sourceDraftId).filter(Boolean));
- const map=new Map();for(const b of local.map(sanitizeShelfBook).filter(Boolean))if(!b.sourceDraftId||!publishedSources.has(b.sourceDraftId))map.set(b.id,b);
+ const map=new Map();for(const b of local.map(sanitizeShelfBook).filter(Boolean))if(!libraryState.deletedIds.has(b.id)&&(!b.sourceDraftId||!publishedSources.has(b.sourceDraftId)))map.set(b.id,b);
  for(const b of live)map.set(b.id,b);
  libraryState.books=[...map.values()].sort((a,b)=>a.createdAt-b.createdAt).slice(-BOOKSHELF_LIMIT);
  if(libraryState.books.length)libraryState.id=libraryState.books.at(-1).id;
- cacheLibrary();refreshLibraryBook();
+ cacheLibrary();saveLocallyOwnedIds();refreshLibraryBook();
 }
 function receiveLibraryBook(raw){
  const book=sanitizeShelfBook(raw);if(!book)return;
- libraryState.publishedIds.add(book.id);
+ libraryState.deletedIds.delete(book.id);libraryState.publishedIds.add(book.id);
  const existing=libraryState.books.findIndex(b=>b.id===book.id);
  if(existing<0)libraryState.books.push(book);else libraryState.books[existing]=book;
  libraryState.books=libraryState.books.sort((a,b)=>a.createdAt-b.createdAt).slice(-BOOKSHELF_LIMIT);
@@ -702,6 +731,7 @@ function shelfSaved(reply){
  // Handles a slow/stale response safely, without mutating a different room.
  receiveLibraryBook(book);
  if(!own)return;
+ libraryState.editableIds.add(book.id);saveLocallyOwnedIds();
  libraryState.id=book.id;libraryState.page=0;libraryState.view='shelf';
  clearShelfPending();refreshLibraryBook();
  if(reply.storage==='temporary'){
@@ -727,12 +757,13 @@ function publishToShelf(book=null){
  // From the writing sidebar, errors used to be sent to a hidden bookshelf modal.
  openLibrary(true);
  const count=charCount(body),titleCount=charCount(title);
+ if(!bookshelfOwnerKey){shelfFeedback('이 기기의 책 관리 키를 저장할 수 없습니다. 브라우저의 사이트 데이터 저장이 허용되어 있는지 확인한 뒤 다시 들어오세요.','error');return}
  if(!body){shelfFeedback('저장할 본문이 없습니다. 「글쓰기 → 03 글쓰기」에서 글을 작성해 주세요.','error');setStep(2);return}
  if(titleCount>80){shelfFeedback(`제목은 최대 80자까지 저장할 수 있습니다. 현재 ${titleCount}자이므로 ${titleCount-80}자를 줄여 주세요.`,'error');return}
  if(count>SHELF_MAX_CHARS){shelfFeedback(`본문 저장 한도는 최대 ${SHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${count.toLocaleString()}자이므로 ${(count-SHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요. 초안은 삭제되지 않습니다.`,'error');return}
  const requestId='book-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12);
  const sourceDraftId=book?.sourceDraftId||(!book?state.activeDraftId:'');
- const payload={t:'shelfAdd',requestId,title,text:body,sourceDraftId};
+ const payload={t:'shelfAdd',requestId,title,text:body,sourceDraftId,ownerKey:bookshelfOwnerKey};
  const byteCount=new TextEncoder().encode(JSON.stringify(payload)).length;
  if(byteCount>SHELF_MAX_BYTES){shelfFeedback(`전송 용량 한도는 ${SHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${byteCount.toLocaleString()}바이트로 ${(byteCount-SHELF_MAX_BYTES).toLocaleString()}바이트 초과했습니다. 이 경우 글을 나누거나 일부 문자를 줄여 주세요.`,'error');return}
  const exists=libraryState.books.some(b=>b.sourceDraftId&&b.sourceDraftId===sourceDraftId&&b.author===state.name);
@@ -754,6 +785,81 @@ function publishToShelf(book=null){
  },9000);
 }
 
+// V14.15: edit and delete only the selected book (not another personal draft).
+function libraryActionFeedback(message,kind='info'){
+ const e=$('#libraryActionFeedback');if(e){e.textContent=message;e.dataset.kind=kind;e.setAttribute('role',kind==='error'?'alert':'status')}
+ if(kind==='error')toast(message);
+}
+function libraryActionBusy(busy){for(const id of ['libraryEdit','libraryDelete','libraryEditSave']){const el=$('#'+id);if(el)el.disabled=busy}}
+function clearShelfAction(){
+ if(shelfActionTimer){clearTimeout(shelfActionTimer);shelfActionTimer=null}
+ shelfActionPending=null;libraryActionBusy(false);
+}
+function removeLibraryBook(id){
+ if(typeof id!=='string')return;
+ libraryState.books=libraryState.books.filter(b=>b.id!==id);
+ libraryState.publishedIds.delete(id);libraryState.editableIds.delete(id);libraryState.deletedIds.add(id);
+ saveLocallyOwnedIds();cacheLibrary();
+ if(libraryState.id===id){libraryState.id=null;libraryState.page=0;libraryState.view='shelf';libraryState.editing=false}
+ refreshLibraryBook();
+}
+function openLibraryEditor(){
+ const book=libraryState.books.find(b=>b.id===libraryState.id);
+ if(!canEditBook(book)||shelfActionPending){libraryActionFeedback('이 책을 수정할 권한이 없거나 저장 처리 중입니다.','error');return}
+ $('#libraryEditTitle').value=book.title;$('#libraryEditText').value=book.text;
+ libraryState.editing=true;$('#libraryEditCount').textContent=charCount(book.text).toLocaleString()+' / '+SHELF_MAX_CHARS.toLocaleString()+'자';
+ libraryActionFeedback('책장에 공개된 책을 수정합니다. 이 기기에 저장된 초안은 자동으로 바뀌지 않습니다.');
+ refreshLibraryBook();$('#libraryEditTitle').focus({preventScroll:true});
+}
+function cancelLibraryEditor(){if(shelfActionPending)return;libraryState.editing=false;refreshLibraryBook()}
+function sendShelfAction(payload){
+ if(!state.connected||socket?.readyState!==WebSocket.OPEN){libraryActionFeedback('서버 연결이 끊겼습니다. 다시 접속해 주세요.','error');return}
+ shelfActionPending={requestId:payload.requestId,type:payload.t};libraryActionBusy(true);
+ libraryActionFeedback(payload.t==='shelfUpdate'?'수정한 책을 서버에 저장하는 중입니다…':'책을 서버 책장에서 삭제하는 중입니다…','loading');
+ try{socket.send(JSON.stringify(payload))}catch(e){shelfActionFailed({requestId:payload.requestId,message:'전송 실패: 연결 상태를 확인해 주세요.'});return}
+ shelfActionTimer=setTimeout(()=>{
+  if(!shelfActionPending||shelfActionPending.requestId!==payload.requestId)return;
+  if(socket?.readyState===WebSocket.OPEN){try{socket.send(JSON.stringify(payload))}catch(e){}}
+  shelfActionTimer=setTimeout(()=>{if(shelfActionPending?.requestId===payload.requestId)shelfActionFailed({requestId:payload.requestId,message:'서버 응답이 없습니다. 재접속한 뒤 책장 목록에서 반영 여부를 확인해 주세요.'})},10000);
+ },9000);
+}
+function saveLibraryEdit(){
+ const book=libraryState.books.find(b=>b.id===libraryState.id);
+ if(!canEditBook(book)){libraryActionFeedback('이 책을 수정할 권한이 없습니다.','error');return}
+ const title=$('#libraryEditTitle').value.trim()||'제목 없는 글',text=$('#libraryEditText').value.trim();
+ const chars=charCount(text),titles=charCount(title);
+ if(!text){libraryActionFeedback('본문이 비어 있습니다. 내용을 작성해 주세요.','error');return}
+ if(titles>80){libraryActionFeedback(`제목은 최대 80자입니다. 현재 ${titles}자이므로 ${titles-80}자를 줄여 주세요.`,'error');return}
+ if(chars>SHELF_MAX_CHARS){libraryActionFeedback(`본문은 최대 ${SHELF_MAX_CHARS.toLocaleString()}자입니다. 현재 ${chars.toLocaleString()}자이므로 ${(chars-SHELF_MAX_CHARS).toLocaleString()}자를 줄여 주세요.`,'error');return}
+ const payload={t:'shelfUpdate',requestId:freshRequestId(),id:book.id,title,text,ownerKey:bookshelfOwnerKey,sourceDraftId:legacyOwnDraft(book)?book.sourceDraftId:'',expectedVersion:book.updatedAt||book.createdAt};
+ const bytes=new TextEncoder().encode(JSON.stringify(payload)).length;
+ if(bytes>SHELF_MAX_BYTES){libraryActionFeedback(`전송 한도는 ${SHELF_MAX_BYTES.toLocaleString()}바이트입니다. 현재 ${bytes.toLocaleString()}바이트로 ${bytes-SHELF_MAX_BYTES}바이트 초과했습니다.`,'error');return}
+ sendShelfAction(payload);
+}
+function deleteLibraryBook(){
+ const book=libraryState.books.find(b=>b.id===libraryState.id);
+ if(!canEditBook(book)){libraryActionFeedback('이 책을 삭제할 권한이 없습니다.','error');return}
+ if(!confirm(`『${book.title}』을(를) 모임방 책장에서 삭제할까요? 다른 멤버의 책장에서도 사라집니다.\n내 기기의 글쓰기 초안은 삭제되지 않습니다.`))return;
+ sendShelfAction({t:'shelfDelete',requestId:freshRequestId(),id:book.id,ownerKey:bookshelfOwnerKey,sourceDraftId:legacyOwnDraft(book)?book.sourceDraftId:'',expectedVersion:book.updatedAt||book.createdAt});
+}
+function shelfActionUpdated(p){
+ if(!shelfActionPending||p?.requestId!==shelfActionPending.requestId||shelfActionPending.type!=='shelfUpdate')return;
+ clearShelfAction();libraryState.editing=false;
+ const book=sanitizeShelfBook(p.book);
+ if(!book){libraryActionFeedback('서버의 수정 완료 응답이 잘못됐습니다. 책장을 다시 열어 확인해 주세요.','error');return}
+ libraryState.editableIds.add(book.id);saveLocallyOwnedIds();receiveLibraryBook(book);
+ libraryState.id=book.id;libraryState.page=0;libraryState.view='reader';refreshLibraryBook();
+ libraryActionFeedback('『'+book.title+'』 수정 완료! 다른 멤버의 책장에도 반영됐습니다.','success');playSound('reading');
+}
+function shelfActionDeleted(p){
+ if(!shelfActionPending||p?.requestId!==shelfActionPending.requestId||shelfActionPending.type!=='shelfDelete')return;
+ clearShelfAction();removeLibraryBook(p.id);libraryActionFeedback('책을 책장에서 삭제했습니다. 원본 초안은 그대로 남아 있습니다.','success');
+ shelfFeedback('책장에 꽂힌 책을 삭제했습니다. 다른 멤버의 책장에서도 제거됐습니다.','success');
+}
+function shelfActionFailed(p){
+ if(!shelfActionPending||p?.requestId!==shelfActionPending.requestId)return;
+ clearShelfAction();libraryActionFeedback(p.message||'서버에서 수정·삭제에 실패했습니다.','error');
+}
 // A single shared book catalog powers BOTH physical bookshelves. Covers always show the author.
 const libraryCoverTones=6;
 function coverToneFor(id){let h=17;for(const ch of String(id))h=(Math.imul(h,31)+ch.charCodeAt(0))|0;return (h>>>0)%libraryCoverTones}
@@ -774,7 +880,7 @@ function renderLibraryGallery(){
   const motif=document.createElement('span');motif.className='libraryCoverMotif';motif.textContent='✦';motif.setAttribute('aria-hidden','true');
   const title=document.createElement('strong');title.className='libraryCoverTitle';title.textContent=b.title;
   const author=document.createElement('span');author.className='libraryCoverAuthor';author.textContent='글쓴이 · '+b.author;
-  const foot=document.createElement('span');foot.className='libraryCoverBottom';foot.textContent=published?'모임방 공유 중':'이 기기에만 저장';
+  const foot=document.createElement('span');foot.className='libraryCoverBottom';foot.textContent=canEditBook(b)?'내 책 · 수정/삭제 가능':published?'모임방 공유 중':'이 기기에만 저장';
   cover.append(top,motif,title,author,foot);
   const label=document.createElement('span');label.className='libraryBookTileLabel';label.textContent=b.title;
   const by=document.createElement('span');by.className='libraryBookTileBy';by.textContent='✍ '+b.author;
@@ -797,6 +903,12 @@ function renderLibraryReader(){
  $('#libraryPrev').disabled=libraryState.page===0;
  $('#libraryNext').disabled=libraryState.page>=pages.length-1;
  $('#libraryRestore').hidden=libraryState.publishedIds.has(b.id);
+ const manageable=canEditBook(b);
+ if(!manageable)libraryState.editing=false;
+ $('#libraryOwnerActions').hidden=!manageable;
+ $('#libraryReadPaper').hidden=libraryState.editing;
+ $('#libraryEditor').hidden=!libraryState.editing;
+ $('#libraryReadToolbarActions').hidden=libraryState.editing;
  $('#libraryNote').textContent=libraryState.publishedIds.has(b.id)?'같은 모임방 참가자는 글쓰기 모임방과 심리 모임방에서 이 책을 읽을 수 있어요.':'이 책은 이 기기에만 남아 있어요. 다른 참가자에게 보이게 하려면 다시 공유해 주세요.';
 }
 function refreshLibraryBook(){
@@ -816,13 +928,13 @@ function openLibrary(force=false){
  $('#libraryModal').classList.remove('hidden');$('#libraryModal').setAttribute('aria-hidden','false');
  refreshLibraryBook();playSound('reading');
 }
-function closeLibrary(){libraryState.open=false;$('#libraryModal').classList.add('hidden');$('#libraryModal').setAttribute('aria-hidden','true')}
-function returnToLibraryGallery(){libraryState.view='shelf';refreshLibraryBook();$('#libraryBack')?.blur();$('#librarySearch')?.focus({preventScroll:true});}
+function closeLibrary(){if(shelfActionPending){libraryActionFeedback('저장/삭제 처리 중입니다. 결과를 확인한 뒤 닫아 주세요.','loading');return}libraryState.editing=false;libraryState.open=false;$('#libraryModal').classList.add('hidden');$('#libraryModal').setAttribute('aria-hidden','true')}
+function returnToLibraryGallery(){if(shelfActionPending){libraryActionFeedback('저장/삭제 처리 결과를 먼저 확인해 주세요.','loading');return}libraryState.editing=false;libraryState.view='shelf';refreshLibraryBook();$('#libraryBack')?.blur();$('#librarySearch')?.focus({preventScroll:true});}
 $('#libraryClose').onclick=closeLibrary;
 $('#libraryModal').addEventListener('click',e=>{if(e.target.id==='libraryModal')closeLibrary()});
 $('#libraryChoices').addEventListener('click',e=>{
  const btn=e.target.closest('[data-library-book]');if(!btn)return;
- libraryState.id=btn.dataset.libraryBook;libraryState.page=0;libraryState.view='reader';
+ libraryState.id=btn.dataset.libraryBook;libraryState.page=0;libraryState.view='reader';libraryState.editing=false;libraryActionFeedback('책을 읽고 있습니다. 본인이 등록한 책은 아래에서 수정하거나 삭제할 수 있어요.');
  refreshLibraryBook();$('#libraryBack')?.focus({preventScroll:true});playSound('reading');
 });
 $('#libraryBack').onclick=()=>{returnToLibraryGallery();playSound('click')};
@@ -831,6 +943,12 @@ $('#libraryPrev').onclick=()=>{libraryState.page=Math.max(0,libraryState.page-1)
 $('#libraryNext').onclick=()=>{libraryState.page++;renderLibraryReader();playSound('click')};
 $('#librarySave').onclick=()=>publishToShelf();
 $('#libraryRestore').onclick=()=>{const b=libraryState.books.find(x=>x.id===libraryState.id);if(b)publishToShelf(b)};
+$('#libraryEdit').onclick=openLibraryEditor;
+$('#libraryDelete').onclick=deleteLibraryBook;
+$('#libraryEditSave').onclick=saveLibraryEdit;
+$('#libraryEditCancel').onclick=cancelLibraryEditor;
+$('#libraryEditText').addEventListener('input',e=>{$('#libraryEditCount').textContent=charCount(e.target.value).toLocaleString()+' / '+SHELF_MAX_CHARS.toLocaleString()+'자'});
+
 
 function roomGlow(zone){const label=zone==='tea'?'☕ 다과룸에 오셨어요':zone==='mind'?'✧ 여섯 얼굴의 방에 오셨어요':'✎ 글쓰기 모임방에 오셨어요';
  const el=document.createElement('div');el.className='arrival';el.textContent=label;$('#fxlayer').append(el);setTimeout(()=>el.remove(),1700);
@@ -916,7 +1034,7 @@ function interact(){
 
 function sendMove(){send({t:'move',x:actor.x,z:actor.z,rot:actor.rot,action:actor.action});const p=peers.get(state.me);if(p){p.x=actor.x;p.z=actor.z;p.rot=actor.rot;p.action=actor.action}}
 const moveKeys=new Set(['w','a','s','d','arrowup','arrowleft','arrowright','arrowdown']);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#libraryModal').classList.contains('hidden')){if(libraryState.view==='reader')returnToLibraryGallery();else closeLibrary()}else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#libraryModal').classList.contains('hidden')){if(libraryState.editing)cancelLibraryEditor();else if(libraryState.view==='reader')returnToLibraryGallery();else closeLibrary()}else if(!$('#faceInfoModal').classList.contains('hidden'))hideFaceInfo();else if(!$('#mindModal').classList.contains('hidden'))hideMindModal();else if(!$('#snackMenu').classList.contains('hidden'))hideSnackMenu();else if(bookState.open)closeBook();else document.activeElement?.blur();return}if(e.target.closest('input,textarea,button')||!state.connected)return;const k=e.key.toLowerCase();if(moveKeys.has(k)){e.preventDefault();activeKey.add(k);route=[];if(state.sitting||actor.action==='lie')standUp()}else if(k==='v'){toggleCam()}else if(k==='f'){interact()}else if(k==='e'){interact()}else if(k==='enter'){setTab('chat');$('#chatInput').focus()}});
 document.addEventListener('keyup',e=>activeKey.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>activeKey.clear());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAmbient();else startAmbient()});
 function toggleCam(){cam.first=!cam.first;cam.pitch=cam.first?.05:.31;cam.dist=4.7;cam.followPos=null;toast(cam.first?'1인칭 시점 · 마우스로 자유롭게 둘러보세요.':'3인칭 시점 · 내 캐릭터를 볼 수 있어요.');playSound()}

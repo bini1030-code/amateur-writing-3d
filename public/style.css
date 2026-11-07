@@ -394,3 +394,23 @@
  .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookTileLabel{font-size:11px}
  .libraryChoices.libraryBookGrid .libraryBookTile .libraryBookTileBy{font-size:10px}
 }
+
+/* V14.15: manage only your own published books. Clearly readable editing controls. */
+.libraryReaderView [hidden],.libraryOwnerActions[hidden],.libraryEditor[hidden]{display:none!important}
+.libraryOwnerActions{display:flex;gap:9px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:12px 0;padding:11px 12px;border:1px solid #d2bdaf;background:#fffaf4;border-radius:12px}
+.libraryOwnerActions span{font-size:11px;color:#5d483f;font-weight:750;margin-right:auto}
+.libraryOwnerActions button,.libraryEditActions button{border:1px solid #b89b92;border-radius:10px;background:#f4e7dc;color:#503931;font-size:12px;font-weight:800;padding:10px 14px;cursor:pointer}
+.libraryOwnerActions button:hover,.libraryEditActions button:hover{filter:brightness(.96)}
+.libraryOwnerActions .libraryDangerButton{background:#fff0f0;border-color:#c65a60;color:#8a202b}
+.libraryOwnerActions button:disabled,.libraryEditActions button:disabled{opacity:.55;cursor:wait}
+.libraryEditor{background:#fffaf5;border:1px solid #c7b0a1;border-radius:13px;margin:10px 0;padding:15px;color:#493931}
+.libraryEditor label{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:800;color:#4b3934;margin:7px 0 6px}
+.libraryEditor label small{color:#705954;font-size:11px;font-weight:600}
+.libraryEditor input,.libraryEditor textarea{display:block;width:100%;box-sizing:border-box;border:1.5px solid #b7a299;border-radius:9px;background:#fff;color:#30272c;font-size:14px;padding:11px 12px;line-height:1.7;resize:vertical;outline-offset:2px}
+.libraryEditor textarea{min-height:180px;max-height:48dvh}
+.libraryEditor input:focus,.libraryEditor textarea:focus{outline:2px solid #9471a1}
+.libraryEditHelp{font-size:11px;line-height:1.7;color:#715b56;margin:10px 0}
+.libraryEditActions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.libraryEditActions #libraryEditSave{background:#6e587d;border-color:#6e587d;color:#fff}
+#libraryActionFeedback.libraryFeedback{margin-top:12px;margin-bottom:4px}
+@media(max-width:700px){.libraryOwnerActions{padding:10px;gap:6px}.libraryOwnerActions span{flex:1 1 100%}.libraryOwnerActions button{flex:1}.libraryEditor{padding:12px}.libraryEditActions button{flex:1;font-size:11px}}

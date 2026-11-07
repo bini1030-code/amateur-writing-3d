@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.14.0",
+  "version": "14.15.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D v14.13 - 공유 책장 표지 갤러리 · 책별 글쓴이 표시 · 여러 권 클릭해 읽기",
+  "description": "아마추어 글쓰기 3D v14.15 — 책장에 꽂은 책 수정 및 삭제, 기기 관리 키, 삭제 동기화",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
