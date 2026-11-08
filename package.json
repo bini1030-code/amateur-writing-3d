@@ -1,8 +1,8 @@
 {
   "name": "amateur-writing-3d-multiplayer",
-  "version": "14.27.0",
+  "version": "14.28.0",
   "private": true,
-  "description": "아마추어 글쓰기 3D — 글쓴이별 책장 · 스크롤 읽기 · 방명록 보드 · 책/방명록 댓글 · 반려동물 세 마리 · Supabase 영구 저장",
+  "description": "아마추어 글쓰기 3D — 글쓴이별 책장 · 스크롤 읽기 · 방명록 보드 · 책/방명록 댓글 · 별빛 우주 배경 · 반려동물 세 마리 · Supabase 영구 저장",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

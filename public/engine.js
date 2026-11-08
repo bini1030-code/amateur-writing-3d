@@ -21,8 +21,72 @@ void main(){
  gl_FragColor=vec4(mix(c,vec3(.055,.075,.108),vFog),1.);
 }`;
 function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
-let aPos,aColor,uMatrix,uAmbient,uModel,uFxPos,uFxColor,uFxPower,uStandLampOn;const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
-if(gl){const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vert));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);aPos=gl.getAttribLocation(program,'aPos');aColor=gl.getAttribLocation(program,'aColor');uMatrix=gl.getUniformLocation(program,'uMatrix');uModel=gl.getUniformLocation(program,'uModel');uAmbient=gl.getUniformLocation(program,'uAmbient');uFxPos=gl.getUniformLocation(program,'uFxPos');uFxColor=gl.getUniformLocation(program,'uFxColor');uFxPower=gl.getUniformLocation(program,'uFxPower');uStandLampOn=gl.getUniformLocation(program,'uStandLampOn');gl.uniform1f(uStandLampOn,1);gl.uniformMatrix4fv(uModel,false,identity);gl.uniform3f(uFxPos,0,-50,0);gl.uniform3f(uFxColor,1,.8,.6);gl.uniform1f(uFxPower,0);gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.14,.16,.20,1);gl.uniform1f(uAmbient,.39);}
+let sceneProgram,aPos,aColor,uMatrix,uAmbient,uModel,uFxPos,uFxColor,uFxPower,uStandLampOn;const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+if(gl){const program=gl.createProgram();sceneProgram=program;gl.attachShader(program,shader(gl.VERTEX_SHADER,vert));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);aPos=gl.getAttribLocation(program,'aPos');aColor=gl.getAttribLocation(program,'aColor');uMatrix=gl.getUniformLocation(program,'uMatrix');uModel=gl.getUniformLocation(program,'uModel');uAmbient=gl.getUniformLocation(program,'uAmbient');uFxPos=gl.getUniformLocation(program,'uFxPos');uFxColor=gl.getUniformLocation(program,'uFxColor');uFxPower=gl.getUniformLocation(program,'uFxPower');uStandLampOn=gl.getUniformLocation(program,'uStandLampOn');gl.uniform1f(uStandLampOn,1);gl.uniformMatrix4fv(uModel,false,identity);gl.uniform3f(uFxPos,0,-50,0);gl.uniform3f(uFxColor,1,.8,.6);gl.uniform1f(uFxPower,0);gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.14,.16,.20,1);gl.uniform1f(uAmbient,.39);}
+// V14.28 — real, camera-aware starfield behind the 3D geometry.
+// Generated once, entirely locally: no network assets, no extra packages, no
+// full-screen wallpaper over the furniture. It also works in software mode.
+function buildNightSky(){
+ const sky=document.createElement('canvas');sky.width=2048;sky.height=1024;
+ const c=sky.getContext('2d');if(!c)return null;
+ let seed=0x6cd28791;const rand=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return(seed>>>0)/4294967296};
+ const w=sky.width,h=sky.height;
+ const base=c.createLinearGradient(0,0,0,h);base.addColorStop(0,'#080e23');base.addColorStop(.5,'#0b1531');base.addColorStop(1,'#151c38');c.fillStyle=base;c.fillRect(0,0,w,h);
+ // Slightly misty Milky Way. Restrained indigo / muted pink clouds preserve
+ // the project's softly lit, quiet reading-room style.
+ for(let i=0;i<60;i++){
+  const x=((i/60)*w+rand()*205-100+w)%w;
+  const cy=h*(.54-.27*Math.sin((x/w)*Math.PI*2+.5))+rand()*115-56;
+  const radius=90+rand()*230;
+  const glow=c.createRadialGradient(x,cy,5,x,cy,radius);
+  const tint=i%5===0?'137,97,157':i%3===0?'65,93,165':'72,97,157';
+  glow.addColorStop(0,`rgba(${tint},${.052+rand()*.065})`);
+  glow.addColorStop(.54,`rgba(${tint},.026)`);glow.addColorStop(1,`rgba(${tint},0)`);
+  c.fillStyle=glow;c.fillRect(x-radius,cy-radius,radius*2,radius*2);
+ }
+ for(let i=0;i<3850;i++){
+  const x=rand()*w,y=rand()*h,r=rand();
+  const sz=r>.993?2.1+rand()*1.6:r>.84?1.05+rand()*1.05:.56+rand()*.53;
+  const alpha=.38+rand()*.62;
+  const tone=['255,245,218','229,237,255','181,205,255','255,255,250'][Math.floor(rand()*4)];
+  if(sz>1.35){c.fillStyle=`rgba(${tone},${alpha*.11})`;c.beginPath();c.arc(x,y,sz*3.4,0,Math.PI*2);c.fill()}
+  c.fillStyle=`rgba(${tone},${alpha})`;c.beginPath();c.arc(x,y,sz,0,Math.PI*2);c.fill();
+  if(sz>1.85){c.strokeStyle=`rgba(${tone},${alpha*.40})`;c.lineWidth=.65;c.beginPath();c.moveTo(x-sz*3.5,y);c.lineTo(x+sz*3.5,y);c.moveTo(x,y-sz*3.4);c.lineTo(x,y+sz*3.4);c.stroke()}
+ }
+ return sky;
+}
+const nightSky=buildNightSky();
+let skyProgram=null,skyPosition=-1,skyOffset=null,skyTexture=null,skyVertexBuffer=null;
+if(gl&&nightSky){
+ try{
+  const vertex=shader(gl.VERTEX_SHADER,'attribute vec2 aSkyPos;varying vec2 vSkyUv;void main(){vSkyUv=aSkyPos*.5+.5;gl_Position=vec4(aSkyPos,1.0,1.0);}');
+  const fragment=shader(gl.FRAGMENT_SHADER,'precision mediump float;varying vec2 vSkyUv;uniform sampler2D uSkyTex;uniform vec2 uSkyShift;void main(){vec2 uv=fract(vSkyUv*vec2(.68,.62)+uSkyShift);gl_FragColor=texture2D(uSkyTex,uv);}');
+  const program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+  skyProgram=program;skyPosition=gl.getAttribLocation(program,'aSkyPos');skyOffset=gl.getUniformLocation(program,'uSkyShift');
+  skyVertexBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,skyVertexBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  skyTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,skyTexture);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,nightSky);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.useProgram(program);gl.uniform1i(gl.getUniformLocation(program,'uSkyTex'),0);
+  gl.useProgram(sceneProgram);gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);
+ }catch(e){console.warn('별빛 배경 WebGL 초기화 실패; 기본 배경을 사용합니다.',e);skyProgram=null;gl.useProgram(sceneProgram)}
+}
+function drawNightSky(cam){
+ if(!gl||!skyProgram)return;
+ const eye=cam.eye||[0,0,0],target=cam.center||[0,0,1];
+ const dx=target[0]-eye[0],dy=target[1]-eye[1],dz=target[2]-eye[2];
+ const yaw=Math.atan2(dx,dz)/(2*Math.PI),pitch=Math.atan2(dy,Math.hypot(dx,dz))/Math.PI;
+ gl.useProgram(skyProgram);gl.disable(gl.DEPTH_TEST);gl.depthMask(false);
+ gl.bindBuffer(gl.ARRAY_BUFFER,skyVertexBuffer);gl.enableVertexAttribArray(skyPosition);
+ gl.vertexAttribPointer(skyPosition,2,gl.FLOAT,false,8,0);
+ gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,skyTexture);
+ gl.uniform2f(skyOffset,.18+yaw*.26,.19+pitch*.24);
+ gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+ gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.useProgram(sceneProgram);
+ gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aColor);
+}
 function mul(a,b){let r=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)for(let k=0;k<4;k++)r[j*4+i]+=a[k*4+i]*b[j*4+k];return r}
 function persp(fov,aspect,near,far){let f=1/Math.tan(fov/2);let a=new Float32Array(16);a[0]=f/aspect;a[5]=f;a[10]=(far+near)/(near-far);a[11]=-1;a[14]=2*far*near/(near-far);return a}
 function norm(a){let l=Math.hypot(...a)||1;return a.map(v=>v/l)}
@@ -75,6 +139,28 @@ B(-9,1.9,-5.5,.22,3.8,9.1,'#cdb9a3');B(9,1.9,-5.5,.22,3.8,9.1,'#514568');B(-4.5,
 for(let z of [12,-1,-10]){B(-8.5,.11,z,1,.22,.08,'#856952');B(1,.11,z,1,.22,.08,'#856952')}
 // Right wall windows, dark exterior glass panels and warm frames
 for(const z of [3.65,6.55,9.45]){B(8.87,2.25,z,.035,2.18,2.5,'#30434a');B(8.82,3.40,z,.12,.09,2.68,'#806b57');B(8.82,1.12,z,.12,.09,2.68,'#806b57');B(8.82,2.25,z,.12,2.3,.08,'#806b57');B(8.80,2.26,z,.07,.09,2.52,'#806b57');for(let t=0;t<4;t++)S(8.83,2.7+(t%2)*.6,z-.8+Math.floor(t/2)*1.5,.045,'#fbecc5',6,5)}
+// V14.28: the SAME deep-space palette appears through the three writing-room
+// windows. This is actual 3D glass-side geometry, so it stays in the frames
+// as the player moves; the large open exterior is handled by drawNightSky().
+let windowStarSeed=0x47ae9201;
+function windowStarRand(){windowStarSeed^=windowStarSeed<<13;windowStarSeed^=windowStarSeed>>>17;windowStarSeed^=windowStarSeed<<5;return(windowStarSeed>>>0)/4294967296}
+for(const zc of [3.65,6.55,9.45]){
+ // Inside face x=8.8 is toward the room; frame x=8.76 remains nearer the camera.
+ B(8.807,2.25,zc,.012,2.10,2.43,'#0b1836');
+ // Keep the view uninterrupted: no opaque cloud spheres over the stars.
+ for(let i=0;i<150;i++){
+  const y=1.27+windowStarRand()*1.94,z=zc-1.13+windowStarRand()*2.26;
+  const size=(windowStarRand()>.955?.025:.006+windowStarRand()*.009);
+  const palette=['#e9e6fa','#fdf1d6','#bbd2ff','#dde9ff'];
+  const color=rgb(palette[Math.floor(windowStarRand()*palette.length)]);
+  const a=[8.785,y-size,z-size],b=[8.785,y-size,z+size],c=[8.785,y+size,z+size],d=[8.785,y+size,z-size];
+  world.quad(a,b,c,d,color);
+  if(size>.020){ // tiny four-point glints in the glass
+   world.quad([8.782,y-size*2.2,z-size*.16],[8.782,y-size*2.2,z+size*.16],[8.782,y+size*2.2,z+size*.16],[8.782,y+size*2.2,z-size*.16],tint(color,.70));
+   world.quad([8.781,y-size*.16,z-size*2.2],[8.781,y-size*.16,z+size*2.2],[8.781,y+size*.16,z+size*2.2],[8.781,y+size*.16,z-size*2.2],tint(color,.70));
+  }
+ }
+}
 // Oak rug, soft sections
 B(-.15,.014,5.2,10.9,.023,6.4,'#c4b3a0');B(-.15,.036,5.2,10.25,.02,5.85,'#d8cbbb');
 // Main desks: 2 broad meeting tables and center seam
@@ -519,6 +605,6 @@ function drawSoftware(ts,people,cam,particles,lampOn=true,petStates=[]){
  function add(tris,px=0,py=0,pz=0,rot=0){const co=Math.cos(rot),si=Math.sin(rot);for(const a of tris){let coords=[],depth=0,valid=true;for(let i=0;i<9;i+=3){const x=a[i]*co+a[i+2]*si+px,y=a[i+1]+py,z=-a[i]*si+a[i+2]*co+pz;const clipW=m[3]*x+m[7]*y+m[11]*z+m[15];if(clipW<.09){valid=false;break}let vx=(m[0]*x+m[4]*y+m[8]*z+m[12])/clipW,vy=(m[1]*x+m[5]*y+m[9]*z+m[13])/clipW;coords.push((vx*.5+.5)*w,(.5-vy*.5)*h);depth+=Math.hypot(x-eye[0],y-eye[1],z-eye[2])}if(!valid)continue;if(Math.min(coords[0],coords[2],coords[4])>w||Math.max(coords[0],coords[2],coords[4])<0||Math.min(coords[1],coords[3],coords[5])>h||Math.max(coords[1],coords[3],coords[5])<0)continue;op.push([depth/3,...coords,a[9]])}}
  add(softWorld);add(lampOn?softLampOn:softLampOff);for(const p of people){if(cam.first&&p.self)continue;add((softAvatars[p.gender==='female'?'female':'male'][p.color]||softAvatars.male[0])[p.pose||0],p.x,p.py||0,p.z,p.rot)}
  for(const pet of petStates){const poses=softPets?.[pet.id];if(poses)add(poses[pet.pose]||poses[0],pet.x,pet.py||0,pet.z,pet.rot||0)}
- op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#141723';softCtx.fillRect(0,0,w,h);
+ op.sort((a,b)=>b[0]-a[0]);softCtx.fillStyle='#0b1026';softCtx.fillRect(0,0,w,h);if(nightSky)softCtx.drawImage(nightSky,0,0,nightSky.width,nightSky.height,0,0,w,h);
  for(const a of op){softCtx.beginPath();softCtx.moveTo(a[1],a[2]);softCtx.lineTo(a[3],a[4]);softCtx.lineTo(a[5],a[6]);softCtx.closePath();softCtx.fillStyle=a[7];softCtx.fill()}
 }
