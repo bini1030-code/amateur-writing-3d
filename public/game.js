@@ -327,7 +327,7 @@ function message(p){
   case 'shelfRemove': removeLibraryBook(p.id);break;
   case 'shelfError': shelfFailed(p.message,p.requestId);break;
   case 'chat':{receiveChat(p);bubble(p.id,p.text);break;}
-  case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);showReactionAboveHead(p.kind,p.id);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(p.kind);}break;}
+  case 'react':{if(p.id===state.me)break;const other=peers.get(p.id);if(other){emote(p.kind,other.x,other.z);showReactionAboveHead(p.kind,p.id);toast(p.name+' 님이 '+({heart:'마음을',clap:'박수를',spark:'반짝임을',wave:'인사를',tea:'차 한 잔을',cookie:'과자를',jelly:'젤리를'}[p.kind]||'온기를')+' 전했어요.');playSound(['steak','pork','pasta'].includes(p.kind)?'cookie':p.kind);}break;}
   case 'mood':{const mood={joy:'☀️ 기쁨',sad:'💧 슬픔',anger:'🔥 분노',worry:'🌧️ 불안',peace:'🍃 평온',hope:'✨ 기대',depression:'🌧️ 우울',anxiety:'🌪️ 불안',addiction:'🌀 중독',madness:'⚡ 광기',love:'💗 사랑'}[p.kind];const other=peers.get(p.id);if(mood){toast(p.name+' 님이 오늘의 마음을 나눴어요 · '+mood);if(other)emote('spark',other.x,other.z);playSound('heart')}break;}
 
   case 'reading':showReading(p.reading);if(p.reading){toast(p.reading.mode==='request'?p.reading.name+' 님이 대신 읽기를 부탁했어요.':'함께 낭독하는 시간이 시작됐어요.');playSound('reading')}else toast('낭독을 마쳤어요. 따뜻한 박수를 보내요.');break;
@@ -407,11 +407,11 @@ $('#clearChatLocal').onclick=()=>{
 };
 function addSystem(text){const el=document.createElement('div');el.className='msg system';el.textContent=text;$('#messages').append(el);$('#messages').scrollTop=$('#messages').scrollHeight;}
 function bubble(id,text){const other=peers.get(id);if(!other)return;other.bubble=text.slice(0,22);other.bubbleEnd=Date.now()+4400;}
-const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬'};
+const reactionEmoji={heart:'💗',clap:'👏',spark:'✨',wave:'👋',tea:'☕',cookie:'🍪',jelly:'🍬',steak:'🥩',pork:'🥓',pasta:'🍝'};
 // A short, stationary symbol appears and disappears WITH its light glow.
 // Only the tea/cookie/jelly reactions gain pictograms; no droplets or flying particles.
 function emote(kind,x,z){
- const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df'};
+ const pulseColors={heart:'#f6b8c8',clap:'#ffe1a0',spark:'#fff2b3',wave:'#cbe8ff',tea:'#d8ecc7',cookie:'#f1c48d',jelly:'#efb3df',steak:'#f0ae8a',pork:'#ebbb89',pasta:'#f5d39a'};
  lightPulse(x,z,pulseColors[kind]||'#ffe2a8',kind==='clap'?150:132);
  burstLight={x,y:1.63,z,kind,end:performance.now()+1000};
 }
@@ -419,7 +419,7 @@ const activeReactionBadges=[];
 function showReactionAboveHead(kind,personId){
  if(!state.connected||!reactionEmoji[kind])return;
  const el=document.createElement('div');el.className='overheadReaction';el.textContent=reactionEmoji[kind];
- el.setAttribute('role','img');el.setAttribute('aria-label',({heart:'마음',clap:'박수',spark:'반짝임',wave:'인사',tea:'차 한 잔',cookie:'과자',jelly:'젤리'}[kind]||'반응'));
+ el.setAttribute('role','img');el.setAttribute('aria-label',({heart:'마음',clap:'박수',spark:'반짝임',wave:'인사',tea:'차 한 잔',cookie:'과자',jelly:'젤리',steak:'토마호크 스테이크',pork:'삼겹살 구이',pasta:'까르보나라 스파게티'}[kind]||'반응'));
  $('#fxlayer').append(el);
  activeReactionBadges.push({el,personId,expires:performance.now()+1700});
  positionReactionBadges();
@@ -437,7 +437,7 @@ function positionReactionBadges(){
   r.el.style.display=visible?'grid':'none';if(visible){r.el.style.left=x+'px';r.el.style.top=Math.max(61,y)+'px';}
  }
 }
-function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);showReactionAboveHead(kind,state.me);playSound(kind)}
+function react(kind){if(!state.connected)return;send({t:'react',kind});emote(kind,actor.x,actor.z);showReactionAboveHead(kind,state.me);playSound(['steak','pork','pasta'].includes(kind)?'cookie':kind)}
 $$('[data-react]').forEach(b=>b.addEventListener('click',()=>react(b.dataset.react)));
 $('#chatForm').addEventListener('submit',e=>{e.preventDefault();const el=$('#chatInput'),t=el.value.trim();if(!t||!state.connected)return;send({t:'chat',text:t.slice(0,200)});el.value='';setTab('chat')});
 function setTab(t){$$('.tabs button').forEach(b=>b.classList.toggle('selected',b.dataset.tab===t));$$('.tabpane').forEach(p=>p.classList.toggle('active',p.id===t+'Pane'));}
@@ -768,7 +768,7 @@ function nearbyInteraction(){
   const d1=nearestRectDistance(actor.x,actor.z,-4.5,-5.1,3.85,1.66);
   const d2=nearestRectDistance(actor.x,actor.z,-4.6,-9.15,7.8,1.35);
   if(plant&&plant.distance<1.15)return {type:'water',plant,label:'식물에 물주기',detail:'물뿌리개로 식물에 물을 주는 행동이에요.'};
-  return Math.min(d1,d2)<.83?{type:'snacks',label:'다과 고르기',detail:'상호작용을 누른 뒤 원하는 다과를 골라요.'}:null
+  return Math.min(d1,d2)<.83?{type:'snacks',label:'다과 고르기',detail:'차·간식뿐 아니라 스테이크·삼겹살·까르보나라도 골라요.'}:null
  }
  if(state.room==='mind'){
   const candidates=[];
@@ -811,7 +811,7 @@ function updateProximityHint(){
   $('#proximityText').textContent=action.detail;
   const icon=$('#proximityIcon');icon.innerHTML=ICON_LIBRARY[action.type]||'✦';
   const chips=$('#proximityChoices');chips.textContent='';
-  const choices=action.type==='snacks'?[['🍵','차 마시기'],['🍪','과자 먹기'],['🍬','젤리 먹기']]:
+  const choices=action.type==='snacks'?[['🍵','차 마시기'],['🍪','과자 먹기'],['🍬','젤리 먹기'],['🥩','스테이크'],['🥓','삼겹살'],['🍝','까르보나라']]:
     action.type==='water'?[['🪴','화분에 물주기']]:action.type==='bookshelf'?[['📚','우리 글 읽기 · 꽂기']]:action.type==='mind'?[['💭','내 마음 알아보기'],['☾','내 마음 몰라보기']]:action.type==='face'?[['🪞','얼굴 이야기 읽기']]:action.type==='pet'?[['🐾','쓰다듬기'],['🍪','간식'],['👋','부르기']]:[];
   for(const [emoji,title] of choices){const chip=document.createElement('span');chip.className='proximityChoice';
    const art=document.createElement('span');art.textContent=emoji;const text=document.createElement('span');text.textContent=title;
@@ -1399,6 +1399,31 @@ function commentListMarkup(items){
  if(!items?.length)return '<p class="communityEmpty">아직 댓글이 없어요. 첫 댓글을 남겨 보세요.</p>';
  return items.map(c=>`<div class="communityComment"><div class="communityCommentHead"><strong>${escapeCommunity(c.author)}</strong><time>${escapeCommunity(communityDate(c.at))}</time></div><p class="communityCommentText">${escapeCommunity(c.text)}</p></div>`).join('');
 }
+const COMMENT_EMOJIS=['😊','🥰','😂','😍','😢','🤔','😮','👏','👍','🙏','❤️','✨','🌟','🌸','🍀','🎉','💗','📚','🐾','💬'];
+function emojiToolbarMarkup(){return '<div class="commentEmojiTools"><button type="button" class="emojiPickerToggle" aria-expanded="false" aria-label="방명록 댓글 이모티콘 선택">😊 이모티콘</button><div class="commentEmojiTray" hidden role="group" aria-label="댓글에 이모티콘 넣기"></div></div>'}
+// The tray is never submitted by itself: the selected symbol is inserted at the
+// caret, and the existing validated 400-character comment protocol stays intact.
+document.addEventListener('click',event=>{
+ const toggle=event.target.closest('.emojiPickerToggle');
+ if(toggle){const tray=toggle.parentElement.querySelector('.commentEmojiTray');if(!tray)return;
+  const opening=tray.hidden;
+  document.querySelectorAll('.commentEmojiTray').forEach(other=>{other.hidden=true;other.previousElementSibling?.setAttribute('aria-expanded','false')});
+  if(opening){if(!tray.childElementCount){const frag=document.createDocumentFragment();for(const emoji of COMMENT_EMOJIS){const b=document.createElement('button');b.type='button';b.textContent=emoji;b.dataset.commentEmoji=emoji;b.setAttribute('aria-label',emoji+' 삽입');frag.appendChild(b)}tray.appendChild(frag)}tray.hidden=false;toggle.setAttribute('aria-expanded','true')}
+  return;
+ }
+ const emojiButton=event.target.closest('[data-comment-emoji]');if(!emojiButton)return;
+ const form=emojiButton.closest('.communityCommentForm'),textarea=form?.querySelector('textarea');if(!textarea)return;
+ const symbol=emojiButton.dataset.commentEmoji;
+ const start=textarea.selectionStart,end=textarea.selectionEnd;
+ const next=textarea.value.slice(0,start)+symbol+textarea.value.slice(end);
+ if(charCount(next)>REPLY_MAX){const target=form.id==='bookCommentForm'?'#bookCommentFeedback':null;
+  if(target)feedbackCommunity(target,`댓글은 최대 ${REPLY_MAX}자입니다. 이모티콘을 넣으려면 글을 조금 줄여 주세요.`,'error');
+  else {const note=form.closest('details')?.querySelector('.guestReplyFeedback');if(note){note.hidden=false;note.textContent=`댓글은 최대 ${REPLY_MAX}자입니다. 글을 조금 줄여 주세요.`;note.dataset.kind='error'}}
+  return;
+ }
+ textarea.value=next;textarea.focus();textarea.setSelectionRange(start+symbol.length,start+symbol.length);
+ textarea.dispatchEvent(new Event('input',{bubbles:true}));
+});
 function renderGuestbook(){
  const holder=$('#guestbookList');if(!holder)return;
  const former=new Map();
@@ -1415,6 +1440,7 @@ function renderGuestbook(){
    <div class="communityCommentList">${commentListMarkup(replies)}</div>
    <form class="communityCommentForm guestReplyForm" data-target-id="${escapeCommunity(post.id)}"><label>이 방명록 글에 댓글 남기기</label>
    <textarea rows="2" maxlength="450" placeholder="따뜻한 답글을 적어 보세요. (최대 400자)"></textarea>
+   ${emojiToolbarMarkup()}
    <div class="communityFormBottom"><span>최대 400자</span><button type="submit" ${communityState.enabled?'':'disabled'}>댓글 저장</button></div></form><p class="guestReplyFeedback communityFeedback" role="status" aria-live="polite" hidden></p></details></article>`
  }).join('');
  holder.querySelectorAll('details.communityReplyArea').forEach(d=>{
@@ -1506,7 +1532,7 @@ $('#bookCommentForm').addEventListener('submit',e=>{
  submitCommunity('comment','book',book.id,$('#bookCommentText').value,e.currentTarget);
 });
 
-function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='main')closeGuestbook();if(zone!=='mind'){hideMindModal();hideFaceInfo()}if(zone!=='main'&&zone!=='mind')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','서서 즐기는 차 · 과자 · 젤리'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','여덟 자리에 둥글게 앉아 서로의 마음을 나누는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
+function updateZone(){const zone=roomOf(actor.x,actor.z);if(zone===state.room&&$('#zoneTitle').dataset.ready)return;if(zone!=='tea')hideSnackMenu();if(zone!=='main')closeGuestbook();if(zone!=='mind'){hideMindModal();hideFaceInfo()}if(zone!=='main'&&zone!=='mind')closeLibrary();const o={main:['THE WRITING ROOM','밤의 문장들','모여서 쓰고, 서로의 이야기를 듣는 방'],tea:['THE SNACK ROOM','달콤한 다과 시간','차 · 과자 · 젤리 · 스테이크 · 삼겹살 · 파스타'],mind:['THE SIX FACES ROOM','내 마음은 왜 여섯 얼굴일까?','여덟 자리에 둥글게 앉아 서로의 마음을 나누는 공간']};const t=o[zone];$('#zoneLabel').textContent=t[0];$('#zoneTitle').textContent=t[1];$('#zoneSub').textContent=t[2];$('#zoneTitle').dataset.ready=1;state.room=zone;renderPeople();if($('#zoneTitle').dataset.visited){playSound('door');roomGlow(zone)}$('#zoneTitle').dataset.visited='1'}
 function closestSeat(){let best=null,dist=1e9;for(const p of chairSeats){const d=Math.hypot(actor.x-p.x,actor.z-p.z);if(d<dist){dist=d;best=p}}return dist<1.21?best:null}
 function sit(){if(state.sitting||actor.action==='lie'){standUp();return}const p=closestSeat();if(!p){toast('의자에 가까이 가면 앉을 수 있어요.');return}actor.x=p.x;actor.z=p.z;actor.rot=p.rot;actor.action='sit';state.sitting=true;state.restSpot={...p,type:'chair'};route=[];sendMove();emote('spark',actor.x,actor.z);playSound('click');toast('자리에 앉았어요. 마음을 정리해 볼까요?');setTab('write')}
 function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
@@ -1514,7 +1540,7 @@ function showSnackMenu(){if(!state.connected||state.room!=='tea')return;
  playSound('click');}
 function hideSnackMenu(){const el=$('#snackMenu');el.classList.add('hidden');el.setAttribute('aria-hidden','true')}
 function eatSnack(kind){if(!state.connected||state.room!=='tea'){hideSnackMenu();return}
- const labels={tea:'따뜻한 차 한 잔 ☕',cookie:'바삭한 과자 🍪',jelly:'말랑한 젤리 🍬'};
+ const labels={tea:'따뜻한 차 한 잔 ☕',cookie:'바삭한 과자 🍪',jelly:'말랑한 젤리 🍬',steak:'토마호크 스테이크 🥩',pork:'삼겹살 구이 🥓',pasta:'까르보나라 스파게티 🍝'};
  if(!Object.prototype.hasOwnProperty.call(labels,kind))return;
  hideSnackMenu();if(state.sitting){state.sitting=false;actor.action='stand';sendMove()}
  react(kind);toast(labels[kind]+' · 서서 맛있게 즐겼어요!');}
@@ -1650,7 +1676,7 @@ function lightPulse(x,z,color='#ffe2a8',size=130,actionIcon=null){
  const glow=document.createElement('div');glow.className='lightPulse';
  glow.style.setProperty('--pulse-color',color);glow.style.setProperty('--pulse-size',size+'px');
  holder.append(glow);
- const glyphs={tea:'🍵',cookie:'🍪',jelly:'🍬'};
+ const glyphs={tea:'🍵',cookie:'🍪',jelly:'🍬',steak:'🥩',pork:'🥓',pasta:'🍝'};
  if(actionIcon==='water'||Object.prototype.hasOwnProperty.call(glyphs,actionIcon)){
   const icon=document.createElement('div');icon.className='actionEffectIcon';
   if(actionIcon==='water')icon.innerHTML=WATERING_CAN_ICON;

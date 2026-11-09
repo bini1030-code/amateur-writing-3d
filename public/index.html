@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#141a20"><title>아마추어 글쓰기 · 밤의 문장들 | 여섯 얼굴의 방</title><link rel="stylesheet" href="/style.css?v=14.28.0"></head><body>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#141a20"><title>아마추어 글쓰기 · 밤의 문장들 | 여섯 얼굴의 방</title><link rel="stylesheet" href="/style.css?v=14.29.0"></head><body>
 <div id="app">
   <main id="space">
     <canvas id="world" aria-label="3D 모임 공간"></canvas>
@@ -19,12 +19,15 @@
     <div class="mobileMove" id="joystick" aria-label="이동 조이스틱"><div class="joystick-hint">MOVE</div><div id="stick"></div></div>
         <div class="effectToast" id="toast" role="status"></div>
     <div id="snackMenu" class="snackOverlay hidden" role="dialog" aria-label="다과 고르기" aria-modal="true" aria-hidden="true">
-      <div class="snackCard"><div class="snackTop"><span class="snackEyebrow">A SWEET LITTLE BREAK</span><button type="button" id="snackMenuClose" aria-label="다과 선택 닫기">✕</button></div>
-        <h2>잠깐, 다과 한 입 어떠세요?</h2><p>서서 가볍게 즐겨요. 다른 참가자에게도 작은 반응이 보여요.</p>
+      <div class="snackCard"><div class="snackTop"><span class="snackEyebrow">A LITTLE FEAST IN THE STARS</span><button type="button" id="snackMenuClose" aria-label="다과 선택 닫기">✕</button></div>
+        <h2>별빛 다과방, 오늘은 무엇을 드실래요?</h2><p>서서 가볍게 즐겨요. 다른 참가자에게도 작은 반응이 보여요.</p>
         <div class="snackChoices">
           <button type="button" data-snack="tea"><span class="snackIcon">🍵</span><strong>따뜻한 차</strong><small>한 모금의 여유</small></button>
           <button type="button" data-snack="cookie"><span class="snackIcon">🍪</span><strong>바삭한 과자</strong><small>달콤한 한 입</small></button>
           <button type="button" data-snack="jelly"><span class="snackIcon">🍬</span><strong>말랑한 젤리</strong><small>기분 좋은 간식</small></button>
+          <button type="button" data-snack="steak"><span class="snackIcon">🥩</span><strong>토마호크 스테이크</strong><small>뼈째 굽는 든든한 한 접시</small></button>
+          <button type="button" data-snack="pork"><span class="snackIcon">🥓</span><strong>삼겹살 구이</strong><small>노릇하게 구운 고기와 채소</small></button>
+          <button type="button" data-snack="pasta"><span class="snackIcon">🍝</span><strong>까르보나라 스파게티</strong><small>고소한 크림 파스타</small></button>
         </div><div class="snackBottom">✦ 다과룸에는 의자가 없어요. 편하게 서서 둘러보세요.</div>
       </div>
     </div>
@@ -90,6 +93,7 @@
             <form id="bookCommentForm" class="communityCommentForm">
               <label for="bookCommentText">댓글 남기기 · 최대 400자</label>
               <textarea id="bookCommentText" rows="2" maxlength="450" placeholder="이 글을 읽고 떠오른 생각을 남겨 보세요."></textarea>
+              <div class="commentEmojiTools"><button class="emojiPickerToggle" type="button" aria-expanded="false" aria-label="책 댓글 이모티콘 선택">😊 이모티콘</button><div class="commentEmojiTray" hidden role="group" aria-label="댓글에 이모티콘 넣기"></div></div>
               <div class="communityFormBottom"><span id="bookCommentCountInput">0 / 400자</span><button type="submit">댓글 저장하기</button></div>
             </form>
             <p id="bookCommentFeedback" class="communityFeedback" role="status" aria-live="polite"></p>
@@ -219,4 +223,4 @@
   </aside>
 </div>
 <div id="entrance" class="overlay"><div class="enterCard"><div class="enterArt"><div class="artGlow"></div><div class="starfield">✧ &nbsp;&nbsp; ✦ &nbsp;&nbsp;&nbsp; ✧</div><div class="enterArtTitle">조금 서툰 문장으로도<br>우리는 서로에게 닿아요.</div><div class="artNote">A quiet room for the things we couldn't say.</div></div><div class="enterForm"><div class="eyebrow">WELCOME TO OUR LITTLE ROOM</div><h2>아마추어<br><i>글쓰기</i></h2><p>따뜻한 불빛 아래 모여, 한 편씩 우리 이야기를 적습니다. 마음이 준비되면 들어오세요.</p><label for="nickname">어떤 이름으로 불러드릴까요?</label><input id="nickname" maxlength="18" placeholder="예: 달빛 필자" autocomplete="nickname"><label for="inviteCode">모임방 코드 <small>같은 코드를 쓰면 같은 공간에 접속해요</small></label><input id="inviteCode" maxlength="18" value="NIGHT" autocomplete="off"><label id="avatarTypeLabel">캐릭터 선택</label><div class="avatarTypes" id="avatarTypes" role="group" aria-labelledby="avatarTypeLabel"><button type="button" class="chosen" data-gender="male" aria-pressed="true"><span class="avatarBadge maleBadge" aria-hidden="true"><i class="badgeBackHair maleBackHair"></i><i class="badgeHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>남자 캐릭터</span></button><button type="button" data-gender="female" aria-pressed="false"><span class="avatarBadge femaleBadge" aria-hidden="true"><i class="badgeBackHair femaleBackHair"></i><i class="badgeHair femaleFrontHair"></i><i class="badgeFace"></i><i class="badgeSweater"></i></span><span>여자 캐릭터</span></button></div><label>니트 색상 선택 <small>남녀 캐릭터 모두 적용돼요</small></label><div class="colors" id="colors" aria-label="아바타 색상 선택"><button data-color="0" class="chosen" style="--c:#b98e73" aria-label="카멜 베이지"></button><button data-color="1" style="--c:#7b9b8d" aria-label="세이지 그린"></button><button data-color="2" style="--c:#839bb8" aria-label="더스티 블루"></button><button data-color="3" style="--c:#b49ac8" aria-label="라벤더"></button><button data-color="4" style="--c:#c8a56b" aria-label="허니 옐로"></button><button data-color="5" style="--c:#cd8f92" aria-label="로즈 핑크"></button></div><button id="enterBtn" class="enterButton">오늘의 방으로 들어가기 <span>↗</span></button><small class="notice">초안은 내 브라우저에 저장돼요. 낭독하거나 책장에 꽂을 때에만 다른 참가자에게 공개돼요. 마이크는 직접 켜야 합니다.</small><div id="entryError" role="status"></div></div></div></div>
-<script src="/engine.js?v=14.28.0"></script><script src="/game.js?v=14.28.0"></script></body></html>
+<script src="/engine.js?v=14.29.0"></script><script src="/game.js?v=14.29.0"></script></body></html>

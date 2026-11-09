@@ -9,7 +9,7 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname,'public');
 const LIMIT = 20;
-const APP_VERSION = '14.28.0';
+const APP_VERSION = '14.29.0';
 const CHAT_HISTORY_LIMIT = 100;
 const EMPTY_ROOM_CHAT_TTL = 24 * 60 * 60 * 1000; // recent history lasts only while this server process runs
 const rooms = new Map(); // chat history in memory; local browsers separately save their own records
@@ -337,7 +337,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object'||Array.isArray(msg))
     }
     case 'react':{
       if(!rate(c,'react',650))return;
-      const kind=['heart','clap','spark','tea','wave','cookie','jelly'].includes(msg.kind)?msg.kind:'heart';
+      const kind=['heart','clap','spark','tea','wave','cookie','jelly','steak','pork','pasta'].includes(msg.kind)?msg.kind:'heart';
       broadcast(room,{t:'react',id:c.id,name:c.name,kind,at:Date.now()});break;
     }
     case 'mood':{

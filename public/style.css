@@ -138,9 +138,9 @@
 /* V7 standing snack bar interaction, responsive without blocking the 3D world outside the brief menu. */
 .snackOverlay.hidden{display:none!important}
 .snackOverlay{position:fixed;inset:0;z-index:32;background:rgba(17,18,24,.48);display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
-.snackCard{background:#fcf5e9;color:#544332;border-radius:22px;border:1px solid #eed8bc;box-shadow:0 22px 80px #13131c88;width:min(510px,100%);padding:22px 23px;box-sizing:border-box}
+.snackCard{background:#fcf5e9;color:#544332;border-radius:22px;border:1px solid #eed8bc;box-shadow:0 22px 80px #13131c88;width:min(650px,100%);padding:22px 23px;box-sizing:border-box}
 .snackTop{display:flex;justify-content:space-between;align-items:center}.snackEyebrow{font:700 10px/1.3 system-ui;letter-spacing:1.5px;color:#af8d6e}.snackTop button{border:0;background:#f0e1ce;color:#765d48;width:33px;height:33px;border-radius:50%;font-size:14px;cursor:pointer}
-.snackCard h2{font:700 24px/1.25 system-ui,sans-serif;color:#473a30;margin:8px 0 8px}.snackCard p{font:13px/1.6 system-ui,sans-serif;color:#89715c;margin:0 0 20px}
+.snackCard h2{font:700 22px/1.25 system-ui,sans-serif;color:#473a30;margin:8px 0 8px}.snackCard p{font:13px/1.6 system-ui,sans-serif;color:#89715c;margin:0 0 20px}
 .snackChoices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .snackChoices button{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:146px;padding:13px 5px;border-radius:15px;border:1.5px solid #e7d5be;background:#fffaf1;color:#5d4735;cursor:pointer;transition:transform .13s,border-color .13s,background .13s}
 .snackChoices button:hover,.snackChoices button:focus-visible{border-color:#b88d61;transform:translateY(-2px);background:#f8ead4}
@@ -745,3 +745,17 @@
 @media(max-width:700px){.guestOverlay{padding:8px}.guestCard{padding:14px;max-height:calc(100dvh - 14px);border-radius:12px}.guestHeader h2{font-size:21px}.guestHeader p{font-size:11px}.guestCompose{padding:10px}.communityComments{padding:11px}.guestPost{padding:11px}.guestPostText{font-size:13px}}
 
 .guestReplyFeedback[hidden]{display:none!important}.guestReplyFeedback{margin:9px 0 0;padding:7px 9px}
+
+/* V14.29: compact six-item dining menu and shared emoji picker for comments. */
+.snackChoices{grid-template-columns:repeat(3,minmax(0,1fr))}
+.snackChoices button{min-height:128px}
+.snackChoices strong{font-size:12px;line-height:1.35;text-align:center;overflow-wrap:anywhere}
+.snackChoices small{text-align:center;line-height:1.4}
+.commentEmojiTools{margin-top:8px;position:relative}
+.emojiPickerToggle{border:1px solid #bda18a;background:#f7eddf;color:#49382d;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer}
+.emojiPickerToggle:hover,.emojiPickerToggle[aria-expanded="true"]{background:#ebd9c5;border-color:#97755d}
+.commentEmojiTray[hidden]{display:none!important}
+.commentEmojiTray{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;padding:8px;background:#fff;border:1px solid #d5bda4;border-radius:10px;box-shadow:0 6px 14px #55311a15}
+.commentEmojiTray button{display:grid;place-items:center;border:1px solid #ede1d4;border-radius:7px;background:#fff9f2;width:35px;height:35px;cursor:pointer;font-size:20px;line-height:1}
+.commentEmojiTray button:hover,.commentEmojiTray button:focus-visible{background:#f5e2ca;border-color:#a78364}
+@media(max-width:700px){.snackChoices{gap:7px}.snackChoices button{min-height:107px;padding:9px 3px}.snackChoices strong{font-size:11px}.snackChoices small{font-size:9px}.snackIcon{font-size:28px}.snackCard{max-height:calc(100dvh - 18px);overflow-y:auto}.commentEmojiTray button{width:34px;height:34px}}

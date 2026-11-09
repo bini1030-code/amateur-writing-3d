@@ -213,8 +213,45 @@ for(const x of [-5.75,-4.48,-3.2]){B(x,.062,-3.70,.55,.014,.36,'#e1c7aa');B(x,.0
 // counter against back wall
 B(-4.6,.57,-9.15,7.6,1.15,1.2,'#b8a188');B(-4.6,1.21,-9.15,7.8,.13,1.35,'#e4d0b3');for(const x of [-7,-4.2,-1.6])B(x,.56,-8.49,.045,.85,.055,'#816b55');
 for(const y of [2.0,2.65]){B(-4.6,y,-9.77,7.3,.12,.45,'#755d4f');for(let i=0;i<9;i++){let x=-7.85+i*.79;B(x,y+.26,-9.72,.12+i%3*.04,.39+i%3*.09,.3,i%3?'#c99c64':'#8a867b')}}
-for(let i=0;i<4;i++)C(-6.8+i*.38,1.43,-9.08,.16,.24,['#e6d0aa','#a9c5ba','#e3baaa','#b7a0a3'][i]);
-C(-3.9,1.34,-9.1,.44,.36,'#d8c0a7');S(-3.9,1.69,-9.1,.23,'#ecdabb',10,6);C(-2.5,1.45,-9.1,.17,.33,'#a07c65');
+// V14.29 — three new plated meals on the tea-room rear serving counter.
+// Geometry is deliberately simple and low-cost for mobile browsers.
+function mealPlate(x,z,r=.65){
+ world.ellipsoid(x,1.316,z,r,.041,.47,'#f7f0e6',16,7);
+ world.ellipsoid(x,1.356,z,r*.85,.013,.365,'#e7ddd2',16,5);
+}
+// Tomahawk: thick char-grilled steak with an unmistakable long exposed bone.
+mealPlate(-6.95,-9.10,.76);
+world.ellipsoid(-7.12,1.448,-9.10,.44,.135,.31,'#773822',16,9);
+world.ellipsoid(-7.14,1.495,-9.09,.39,.104,.265,'#ae5831',16,8);
+for(let j=0;j<4;j++)B(-7.34+j*.135,1.588,-9.09,.034,.012,.46,'#5f2c20',-.12);
+world.limb([-6.77,1.46,-9.07],[-6.34,1.45,-9.05],.054,'#e9d7b7',8);
+S(-6.31,1.45,-9.05,.093,'#f5e6d0',9,6);
+for(const [dx,dz] of [[-.45,.22],[-.52,-.20]])S(-6.95+dx,1.411,-9.1+dz,.07,'#658551',9,5);
+// Grilled pork belly: browned strips with pale fat layers and grill marks.
+mealPlate(-4.58,-9.10,.72);
+for(let i=0;i<4;i++){
+ const x=-4.93+i*.23,z=-9.18+(i%2)*.12;
+ world.ellipsoid(x,1.447,z,.145,.070,.31,'#a55638',12,7);
+ world.ellipsoid(x,1.490,z,.117,.037,.285,'#d59a68',12,6);
+ for(const dz of [-.14,.02,.17])B(x,1.526,z+dz,.21,.014,.025,'#71422e',-.06);
+ B(x+.11,1.465,z,.024,.026,.42,'#f4d5b3');
+}
+for(const [dx,dz] of [[.42,-.23],[.40,.23],[-.40,.33]])world.ellipsoid(-4.58+dx,1.422,-9.1+dz,.15,.025,.09,'#6c995a',10,5);
+// Carbonara: a mound of creamy spaghetti, pepper and small bacon pieces.
+mealPlate(-2.21,-9.10,.75);
+world.ellipsoid(-2.22,1.427,-9.1,.39,.075,.29,'#f4dfa0',16,8);
+for(let coil=0;coil<9;coil++){
+ const radius=.075+coil*.031,phase=coil*.64;
+ for(let j=0;j<34;j++){
+  const a=phase+j*.22,b=a+.235;
+  const x=-2.21+Math.cos(a)*radius,z=-9.10+Math.sin(a)*radius*.78;
+  const nx=-2.21+Math.cos(b)*radius,nz=-9.10+Math.sin(b)*radius*.78;
+  const y=1.47+.015*Math.sin(a*2.4+coil)+.016*Math.cos(coil);
+  B((x+nx)/2,y,(z+nz)/2,.020,.018,Math.hypot(nx-x,nz-z)+.018,'#f5d77f',-Math.atan2(nx-x,nz-z));
+ }
+}
+for(const [dx,dz] of [[-.18,-.10],[.13,.12],[.04,-.17]])B(-2.21+dx,1.496,-9.1+dz,.105,.034,.071,'#ad6044',.45);
+for(let i=0;i<12;i++){const a=i*2.4;S(-2.21+Math.cos(a)*.29,1.518,-9.1+Math.sin(a)*.22,.012,'#5d5546',7,4)}
 B(-4.45,1.3,-5.0,1.1,.06,.65,'#eee2ce');C(-4.5,1.47,-5,.14,.25,'#f6ede2');C(-4.1,1.47,-5.25,.14,.25,'#e5d4be');
 plant(-8.2,-2.7,.9);B(-7.15,2.1,-.76,.88,.9,.09,'#826953');
 // V14.10 - eight-seat support circle restored around a small activity table.
